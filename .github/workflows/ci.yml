@@ -1,13 +1,18 @@
 name: CI
 
+# push と pull_request の両方を全ブランチで拾うと、PR のあるブランチでは
+# 同じコミットに対して 2 回走ってしまう。ブランチへの push は pull_request 側に任せ、
+# push では main だけを見る。
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
+# 同じブランチへ続けて push したときは、古い実行を打ち切る。
+# pull_request と push では github.ref が別物になるため、PR では head_ref を使う。
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
