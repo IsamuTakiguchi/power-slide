@@ -124,8 +124,29 @@ npm run dist         # インストーラを release/ に作成
 ```
 
 `electron-builder.yml` の設定は Windows: NSIS インストーラ、macOS: dmg（arm64 + x64）、
-Linux: AppImage です。各 OS 向けのインストーラは、その OS 上でビルドするのが確実です。
-署名は設定していないため、配布時は各自で証明書を用意してください。
+Linux: AppImage です。各 OS 向けのインストーラは、その OS 上でビルドする必要があります。
+
+**3 OS 分をまとめて作るには、GitHub Actions を使ってください。** `v1.0.0` のようなタグを
+push すると `.github/workflows/release.yml` が Windows / macOS / Linux で並行ビルドし、
+成果物を GitHub Releases の下書きに添付します。
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Actions の画面から手動実行（Run workflow）した場合は、リリースは作らず Artifacts に
+インストーラを残します。
+
+署名は設定していません。そのため初回起動時に OS の警告が出ます（Windows は
+「詳細情報」→「実行」、macOS は右クリック →「開く」）。配布先を選ばず使いたい場合は、
+Windows のコード署名証明書と Apple Developer Program の登録が別途必要です。
+証明書を用意したら、`release.yml` のビルド手順に `CSC_LINK` などを secrets から
+渡すと electron-builder が署名します。
+
+### CI
+
+`.github/workflows/ci.yml` が push と pull request のたびに、型チェック・Lint・
+E2E スモークテスト（Ubuntu + xvfb）を実行します。
 
 ## 構成
 

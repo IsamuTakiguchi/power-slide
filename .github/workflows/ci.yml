@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 型チェック・Lint・E2E テスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Electron の起動に必要な仮想ディスプレイ（GitHub の ubuntu ランナーには
+      # xvfb が入っているが、念のため明示的に導入する）
+      - name: xvfb を用意
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: E2E スモークテスト
+        run: npm run test:smoke
+
+      - name: 失敗時のスクリーンショットを残す
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7

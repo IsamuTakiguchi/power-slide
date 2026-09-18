@@ -1,0 +1,85 @@
+name: Release
+
+# タグ（v1.0.0 など）を押すと 3 OS 分のインストーラをまとめてビルドし、
+# GitHub Releases に下書きとして添付する。
+# 手動実行（workflow_dispatch）ではビルドだけ行い、成果物を Artifacts に残す。
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows (NSIS インストーラ)
+            artifact: windows
+          - os: macos-latest
+            label: macOS (dmg)
+            artifact: macos
+          - os: ubuntu-latest
+            label: Linux (AppImage)
+            artifact: linux
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: インストーラをビルド
+        # 署名は行わない。証明書を用意したら、ここに環境変数
+        # （Windows: CSC_LINK / CSC_KEY_PASSWORD、macOS: CSC_LINK・APPLE_ID など）を
+        # secrets から渡すと electron-builder が署名する。
+        run: npm run dist -- --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 成果物を保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.artifact }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.zip
+          if-no-files-found: warn
+          retention-days: 14
+
+  release:
+    name: Release の下書きを作る
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 下書きリリースに添付
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: artifacts/**/*
+          body: |
+            ## インストール
+
+            - **Windows**: `.exe` をダウンロードして実行
+            - **macOS**: `.dmg` をダウンロードして開き、アプリをドラッグ
+            - **Linux**: `.AppImage` に実行権限を付けて起動
+
+            > 署名していないため、初回起動時に OS の警告が出ます。
+            > Windows は「詳細情報」→「実行」、macOS は右クリック →「開く」で起動できます。
