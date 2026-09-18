@@ -1,6 +1,7 @@
 /** 上部ツールバー。挿入・テーマ・履歴・発表・書き出しの入口。 */
 import { useState } from 'react'
 import type { ShapeKind } from '@shared/deck'
+import type { RecentFile } from '@shared/ipc'
 import { LAYOUTS } from '@shared/layouts'
 import { THEMES } from '@shared/themes'
 import { useDeckStore } from '../store/deckStore'
@@ -11,9 +12,61 @@ import {
   insertTextBox,
   newDeck,
   openDeck,
+  openDeckPath,
   saveDeck,
   startPresenting,
 } from '../lib/commands'
+
+/** パスからファイル名だけを取り出す（Windows の区切りにも対応）。 */
+function fileName(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() ?? filePath
+}
+
+/** 「開く」の隣に出す、最近使ったファイルのメニュー。 */
+function RecentMenu() {
+  const [open, setOpen] = useState(false)
+  const [files, setFiles] = useState<RecentFile[] | null>(null)
+
+  // 開くたびに読み直す（別ウィンドウや前回起動で増えている可能性があるため）
+  const toggle = () => {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    setOpen(true)
+    void window.api.deck.recent().then(setFiles)
+  }
+
+  return (
+    <div className="menu-anchor">
+      <button type="button" title="最近使ったファイル" onClick={toggle}>
+        履歴 ▾
+      </button>
+      {open && (
+        <div className="dropdown is-left" onMouseLeave={() => setOpen(false)}>
+          {files === null && <span className="dropdown-note">読み込み中…</span>}
+          {files?.length === 0 && (
+            <span className="dropdown-note">まだ履歴がありません</span>
+          )}
+          {files?.map((file) => (
+            <button
+              key={file.filePath}
+              type="button"
+              title={file.filePath}
+              onClick={() => {
+                setOpen(false)
+                void openDeckPath(file.filePath)
+              }}
+            >
+              <span className="recent-title">{file.title || fileName(file.filePath)}</span>
+              <span className="recent-path">{fileName(file.filePath)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const SHAPES: { kind: ShapeKind; label: string }[] = [
   { kind: 'rect', label: '四角形' },
@@ -61,6 +114,7 @@ export function Toolbar() {
           <button type="button" onClick={() => void openDeck()}>
             開く
           </button>
+          <RecentMenu />
           <button type="button" onClick={() => void saveDeck()}>
             保存
           </button>

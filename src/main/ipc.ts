@@ -18,6 +18,7 @@ import {
 } from '@shared/ipc'
 import { FILE_EXTENSION, type Deck } from '@shared/deck'
 import { forgetStamp, isExternallyChanged, readDeck, writeDeck } from './file/deckFile'
+import { takePendingOpen } from './fileLaunch'
 import { deckToPptxBuffer } from './export/pptx'
 import { exportDeckToPdf } from './export/pdf'
 import { exportDeckToPng } from './export/png'
@@ -243,6 +244,9 @@ export function registerIpcHandlers(getWindow: WindowProvider): void {
   })
 
   ipcMain.handle(IPC.recentList, async (): Promise<RecentFile[]> => loadRecent())
+
+  /** OS から指定されたファイル（起動引数 / macOS の open-file）を 1 度だけ渡す。 */
+  ipcMain.handle(IPC.deckTakePendingOpen, (): string | null => takePendingOpen())
 
   // ---------------------------------------------------------------- 書き出し
 

@@ -5,13 +5,12 @@
 import type { ChangeEvent } from 'react'
 import type { ShapeKind, SlideElement, TextAlign, VerticalAlign } from '@shared/deck'
 import { resolveTheme } from '@shared/themes'
+import { FONT_CHOICES } from '@shared/fonts'
 import { useDeckStore } from '../store/deckStore'
 
 const FONT_OPTIONS: { label: string; value: string }[] = [
   { label: 'テーマの既定', value: '' },
-  { label: 'ゴシック体', value: '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif' },
-  { label: '明朝体', value: '"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif' },
-  { label: '等幅', value: '"Noto Sans Mono", "SF Mono", Consolas, monospace' },
+  ...FONT_CHOICES.map((choice) => ({ label: choice.label, value: choice.css })),
 ]
 
 const ALIGN_OPTIONS: { label: string; value: TextAlign }[] = [

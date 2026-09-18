@@ -92,6 +92,24 @@ test('起動して既定のタイトルスライドが表示される', async ()
   await expect(page.locator('.slide-list-header')).toContainText('1 枚')
 })
 
+test('同梱した日本語フォントが読み込まれている', async () => {
+  // file:// + CSP の下でも同梱フォントが使えることを確かめる。
+  // 読み込めていないと OS 標準フォントに落ち、環境ごとに見た目が変わってしまう。
+  const loaded = await page.evaluate(async () => {
+    await Promise.all([
+      document.fonts.load('16px "Noto Sans JP"'),
+      document.fonts.load('700 16px "Noto Sans JP"'),
+      document.fonts.load('16px "Noto Serif JP"'),
+    ])
+    return {
+      sans: document.fonts.check('16px "Noto Sans JP"'),
+      sansBold: document.fonts.check('700 16px "Noto Sans JP"'),
+      serif: document.fonts.check('16px "Noto Serif JP"'),
+    }
+  })
+  expect(loaded).toEqual({ sans: true, sansBold: true, serif: true })
+})
+
 test('スライドと要素を追加できる', async () => {
   await page.getByRole('button', { name: 'スライドを追加' }).click()
   await expect(page.locator('.slide-list-item')).toHaveCount(2)
@@ -166,6 +184,14 @@ test('アプリ外で書き換えられたファイルを自動保存で上書�
   expect(statSync(deckPath).mtimeMs).toBe(stampBefore)
 })
 
+test('履歴メニューに保存したファイルが並ぶ', async () => {
+  await page.getByRole('button', { name: '履歴 ▾' }).click()
+  await expect(page.locator('.dropdown.is-left')).toContainText('deck.pslide')
+  // 一覧を閉じるだけ（クリックすると開いてしまうので、開く操作は最後のテストで行う）
+  await page.getByRole('button', { name: '履歴 ▾' }).click()
+  await expect(page.locator('.dropdown.is-left')).toHaveCount(0)
+})
+
 test('図形と画像を挿入できる', async () => {
   const before = await page.locator('.canvas-stage .slide-element').count()
 
@@ -227,8 +253,12 @@ test('PDF を書き出せる', async () => {
   // スライド枚数ぶんのページがあること
   const slideCount = await page.locator('.slide-list-item').count()
   expect((buffer.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(slideCount)
-  // フォントが埋め込まれている = 文字が実際に描かれている
-  expect(buffer.toString('latin1')).toContain('/FontFile')
+  // 同梱フォントのサブセットが PDF に埋め込まれていること。
+  // 可変フォントに戻すと Chromium は埋め込みをやめて名前の参照だけにするため、
+  // フォントのない PC で開くと書体が化ける。この 2 つでその退行を捕まえる。
+  const pdfText = buffer.toString('latin1')
+  expect(pdfText).toContain('/FontFile')
+  expect(pdfText).toMatch(/\/FontName\s*\/[A-Z]{6}\+NotoSansJP-Regular/)
 })
 
 test('PNG を 1 枚ずつ書き出せる', async () => {
@@ -272,4 +302,62 @@ test('編集画面のスクリーンショットを残す', async () => {
   expect(existsSync(join(workDir, 'editor.png'))).toBe(true)
   // 実行後に目視できるようパスを出す
   console.log(`スクリーンショット: ${join(workDir, 'editor.png')}`)
+})
+
+test('履歴から選ぶとそのファイルを開ける', async () => {
+  // 未保存の変更があるので「破棄して続ける」（index 0）を選ばせる
+  await stubMessageBox(app, 0)
+
+  await page.getByRole('button', { name: '履歴 ▾' }).click()
+  await page.locator('.dropdown.is-left button').first().click()
+
+  // 直前にディスク側へ手で書き込んだタイトルが読み込まれる
+  await expect(page.getByLabel('プレゼンテーション名')).toHaveValue('手で書き換えたタイトル')
+  await expect(page.locator('.save-state')).toContainText('保存済み')
+})
+
+test('OS からファイルを指定して起動すると、そのファイルを開く', async () => {
+  // 関連付け（.pslide のダブルクリック）と同じ経路 = 起動引数でパスを渡す
+  const launchDeck = join(workDir, 'launch.pslide')
+  writeFileSync(
+    launchDeck,
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        title: '起動引数から開いたデッキ',
+        themeId: 'navy',
+        slides: [
+          { id: 'sl_a', layoutId: 'blank', elements: [], notes: '' },
+          { id: 'sl_b', layoutId: 'blank', elements: [], notes: '' },
+          { id: 'sl_c', layoutId: 'blank', elements: [], notes: '' },
+        ],
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  )
+
+  // 二重起動防止の錠は userData ごとなので、別の userData で独立して起動する
+  const launched = await electron.launch({
+    args: [
+      'out/main/index.js',
+      '--no-sandbox',
+      `--user-data-dir=${join(workDir, 'userData-launch')}`,
+      launchDeck,
+    ],
+  })
+  try {
+    const launchedPage = await launched.firstWindow()
+    await launchedPage.waitForSelector('.app-shell')
+    await expect(launchedPage.getByLabel('プレゼンテーション名')).toHaveValue(
+      '起動引数から開いたデッキ',
+    )
+    await expect(launchedPage.locator('.slide-list-item')).toHaveCount(3)
+  } finally {
+    await launched.evaluate(async ({ dialog }) => {
+      dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as never
+    })
+    await launched.close()
+  }
 })

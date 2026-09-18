@@ -1,5 +1,47 @@
 /* Power Slide — 編集画面のスタイル。日本語 UI 前提でフォントを指定する。 */
 
+/*
+ * 日本語フォントを同梱する。OS 標準フォントに任せると文字幅と行の折り返し位置が
+ * 環境ごとに変わり、同じ .pslide でも見た目がずれてしまうため、アプリ側で固定する。
+ *
+ * 可変フォントではなく Regular / Bold の静的インスタンスを使っている。可変フォントだと
+ * Chromium の PDF 出力がフォントを埋め込まず、既定インスタンス（Thin）の名前で参照だけを
+ * 書き出してしまい、フォントのない PC で PDF を開いたときに別の書体に化けるため。
+ *
+ * ライセンスは SIL Open Font License 1.1（assets/fonts/OFL.txt）。
+ */
+@font-face {
+  font-family: "Noto Sans JP";
+  src: url("./assets/fonts/NotoSansJP-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Noto Sans JP";
+  src: url("./assets/fonts/NotoSansJP-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Noto Serif JP";
+  src: url("./assets/fonts/NotoSerifJP-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Noto Serif JP";
+  src: url("./assets/fonts/NotoSerifJP-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   --bg: #1b1f27;
   --bg-panel: #232833;
@@ -590,4 +632,35 @@ input[type="color"] {
 @page {
   size: 13.3333in 7.5in;
   margin: 0;
+}
+
+/* 履歴メニュー（最近使ったファイル） */
+
+.dropdown.is-left {
+  right: auto;
+  left: 0;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.dropdown-note {
+  padding: 6px 9px;
+  color: var(--text-dim);
+}
+
+.dropdown .recent-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown .recent-path {
+  display: block;
+  color: var(--text-dim);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

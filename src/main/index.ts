@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { clearUnsavedChanges, hasUnsavedChanges, registerIpcHandlers } from './ipc'
 import { buildMenu } from './menu'
 import { loadRendererRoute } from './rendererTarget'
+import { setupFileLaunch } from './fileLaunch'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -71,6 +72,11 @@ function createMainWindow(): void {
   })
 
   void loadRendererRoute(mainWindow, '/editor')
+}
+
+// 二重起動なら、引数を先行プロセスへ渡して自分は終了する
+if (!setupFileLaunch(getMainWindow)) {
+  app.quit()
 }
 
 app.whenReady().then(() => {

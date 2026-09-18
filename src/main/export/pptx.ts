@@ -18,6 +18,7 @@ import {
 } from '@shared/deck'
 import { pxToInch, pxToPt, SLIDE_HEIGHT_IN, SLIDE_WIDTH_IN } from '@shared/geometry'
 import { resolveTheme } from '@shared/themes'
+import { pptxFontFor } from '@shared/fonts'
 
 const LAYOUT_NAME = 'POWER_SLIDE_16x9'
 
@@ -40,11 +41,13 @@ function hex(color: string | undefined, fallback: string): string {
   return fallback.replace('#', '').toUpperCase()
 }
 
-/** CSS の font-family リストから先頭の実フォント名だけを取り出す。 */
+/**
+ * 画面表示用の font-family から、pptx に書くフォント名を決める。
+ * アプリは同梱の Noto で描くが、pptx は受け取った側の PowerPoint で開かれるため、
+ * Windows / Office に標準で入っている書体を指定する（`shared/fonts.ts`）。
+ */
 function primaryFont(fontFamily: string, fallback: string): string {
-  const source = fontFamily.trim() || fallback
-  const first = source.split(',')[0] ?? ''
-  return first.trim().replace(/^["']|["']$/g, '') || 'Meiryo'
+  return pptxFontFor(fontFamily, fallback)
 }
 
 function textRunsToPptx(

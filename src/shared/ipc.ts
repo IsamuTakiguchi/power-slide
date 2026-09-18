@@ -8,6 +8,9 @@ export const IPC = {
   deckNew: 'deck:new',
   deckOpen: 'deck:open',
   deckOpenPath: 'deck:openPath',
+  deckTakePendingOpen: 'deck:takePendingOpen',
+  /** main → renderer。OS からファイルを開くよう求められた。 */
+  deckOpenRequested: 'deck:openRequested',
   deckSave: 'deck:save',
   deckSaveAs: 'deck:saveAs',
   deckAutoSave: 'deck:autoSave',

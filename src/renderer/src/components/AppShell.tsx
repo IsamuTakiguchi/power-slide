@@ -5,6 +5,7 @@ import { useUiStore } from '../store/uiStore'
 import { useAutoSave } from '../hooks/useAutoSave'
 import { useMenuCommands } from '../hooks/useMenuCommands'
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts'
+import { useFileLaunch } from '../hooks/useFileLaunch'
 import { Toolbar } from './Toolbar'
 import { SlideList } from './SlideList'
 import { SlideCanvas } from './SlideCanvas'
@@ -22,6 +23,7 @@ export function AppShell() {
   useAutoSave()
   useMenuCommands()
   useEditorShortcuts()
+  useFileLaunch()
 
   // ウィンドウタイトルにファイル名と未保存マークを出す
   useEffect(() => {

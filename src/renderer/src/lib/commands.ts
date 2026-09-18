@@ -61,6 +61,9 @@ export async function openDeckPath(filePath: string): Promise<void> {
   }
   if (!result.deck || !result.filePath) return
   store().loadDeck(result.deck, result.filePath)
+  if (result.schemaWarning) {
+    await window.api.dialog.message({ type: 'warning', message: result.schemaWarning })
+  }
   flashStatus('読み込みました')
 }
 

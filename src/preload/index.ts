@@ -31,6 +31,9 @@ const api = {
     confirmDiscard: (message: string): Promise<boolean> =>
       ipcRenderer.invoke(IPC.deckConfirmDiscard, message),
     recent: (): Promise<RecentFile[]> => ipcRenderer.invoke(IPC.recentList),
+    /** OS からファイルを指定して起動された場合、そのパスを 1 度だけ受け取る。 */
+    takePendingOpen: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.deckTakePendingOpen),
   },
   exportDeck: {
     pptx: (deck: Deck): Promise<ExportResult> => ipcRenderer.invoke(IPC.exportPptx, deck),
@@ -55,6 +58,13 @@ const api = {
       message: string
       detail?: string
     }): Promise<void> => ipcRenderer.invoke(IPC.showMessage, payload),
+  },
+  /** 起動中に OS からファイルを開くよう求められたときに呼ばれる。 */
+  onOpenRequested: (handler: (filePath: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, filePath: string): void =>
+      handler(filePath)
+    ipcRenderer.on(IPC.deckOpenRequested, listener)
+    return () => ipcRenderer.off(IPC.deckOpenRequested, listener)
   },
   onMenuCommand: (handler: (command: MenuCommand) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, command: MenuCommand): void =>
