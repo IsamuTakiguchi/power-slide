@@ -5,7 +5,7 @@
  * ・Home / End : 先頭・末尾            ・N : ノート表示     ・B : 黒画面
  * ・Esc : 終了
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
 import { resolveTheme } from '@shared/themes'
 import { useDeckStore } from '../store/deckStore'
@@ -121,12 +121,19 @@ export function Presenter() {
 
   if (!slide) return null
 
+  // タップ／クリックでも送れるようにする（スマホにはキーボードが無い）。左端 3 割で戻る
+  const handleTap = (event: MouseEvent<HTMLDivElement>) => {
+    const ratio = event.clientX / window.innerWidth
+    if (ratio < 0.3) setIndex((value) => Math.max(0, value - 1))
+    else setIndex((value) => Math.min(slides.length - 1, value + 1))
+  }
+
   return (
     <div className={['presenter', cursorHidden ? 'is-cursor-hidden' : ''].join(' ')}>
       {blackout ? (
-        <div className="presenter-blackout" />
+        <div className="presenter-blackout" onClick={handleTap} />
       ) : (
-        <div className="presenter-stage">
+        <div className="presenter-stage" onClick={handleTap}>
           <SlideView slide={slide} theme={theme} scale={scale} />
         </div>
       )}

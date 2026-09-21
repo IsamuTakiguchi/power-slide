@@ -14,6 +14,8 @@ export function StatusBar() {
   const customTheme = useDeckStore((state) => state.deck.theme)
   const notesOpen = useUiStore((state) => state.notesOpen)
   const toggleNotes = useUiStore((state) => state.toggleNotes)
+  const inspectorOpen = useUiStore((state) => state.inspectorOpen)
+  const toggleInspector = useUiStore((state) => state.toggleInspector)
   const zoom = useUiStore((state) => state.zoom)
   const effectiveZoom = useUiStore((state) => state.effectiveZoom)
   const setZoom = useUiStore((state) => state.setZoom)
@@ -25,8 +27,8 @@ export function StatusBar() {
       <span className="status-item">
         スライド {slideIndex + 1}/{slideCount}
       </span>
-      <span className="status-item">日本語</span>
-      <span className="status-item" title="テーマ">
+      <span className="status-item is-optional">日本語</span>
+      <span className="status-item is-optional" title="テーマ">
         {theme.name}
       </span>
       <button
@@ -37,6 +39,15 @@ export function StatusBar() {
         onClick={toggleNotes}
       >
         <Icon name="notes" size={15} /> ノート
+      </button>
+      <button
+        type="button"
+        className={['status-button', inspectorOpen ? 'is-active' : ''].join(' ').trim()}
+        aria-pressed={inspectorOpen}
+        title="書式設定ウィンドウの表示を切り替え"
+        onClick={toggleInspector}
+      >
+        <Icon name="layout" size={15} /> 書式
       </button>
 
       <span className="status-spacer" />

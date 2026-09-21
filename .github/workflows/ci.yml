@@ -40,7 +40,11 @@ jobs:
       - name: xvfb を用意
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
-      - name: E2E スモークテスト
+      # Web 版のテストは Playwright の Chromium で走らせる
+      - name: Chromium を用意
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E スモークテスト（デスクトップ版・Web 版）
         run: npm run test:smoke
 
       - name: 失敗時のスクリーンショットを残す

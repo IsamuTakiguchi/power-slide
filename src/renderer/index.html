@@ -3,8 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <title>Power Slide</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- CSP はビルド時にのみ注入される（開発中は Vite の HMR が inline script を使うため） -->
+    <!-- スマホではページ自体を拡大縮小させず、キャンバスのズームだけを使う -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#c43e1c" />
+    <!-- iPhone の「ホーム画面に追加」向け -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Power Slide" />
+    <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <!-- CSP はデスクトップ版のビルド時にのみ注入される（開発中は Vite の HMR が inline script を使うため）。
+         Web 版の manifest / Service Worker は vite-plugin-pwa がビルド時に差し込む -->
   </head>
   <body>
     <div id="root"></div>

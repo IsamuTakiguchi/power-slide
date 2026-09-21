@@ -4,6 +4,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Deck } from '@shared/deck'
+import type { PowerSlideApi } from '@shared/api'
 import {
   IPC,
   type AutoSaveResult,
@@ -16,7 +17,8 @@ import {
   type SaveDeckResult,
 } from '@shared/ipc'
 
-const api = {
+const api: PowerSlideApi = {
+  capabilities: { exportPng: true, draftAutosave: false, nativeFiles: true },
   deck: {
     open: (): Promise<OpenDeckResult> => ipcRenderer.invoke(IPC.deckOpen),
     openPath: (filePath: string): Promise<OpenDeckResult> =>
@@ -73,7 +75,5 @@ const api = {
     return () => ipcRenderer.off(IPC.menuCommand, listener)
   },
 }
-
-export type PowerSlideApi = typeof api
 
 contextBridge.exposeInMainWorld('api', api)
