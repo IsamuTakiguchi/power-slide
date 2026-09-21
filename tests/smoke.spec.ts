@@ -111,27 +111,74 @@ test('同梱した日本語フォントが読み込まれている', async () =>
 })
 
 test('スライドと要素を追加できる', async () => {
-  await page.getByRole('button', { name: 'スライドを追加' }).click()
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
   await expect(page.locator('.slide-list-item')).toHaveCount(2)
 
   const before = await page.locator('.canvas-stage .slide-element').count()
-  await page.getByRole('button', { name: 'テキスト', exact: true }).click()
+  await page.getByRole('button', { name: 'テキストボックス', exact: true }).click()
   await expect(page.locator('.canvas-stage .slide-element')).toHaveCount(before + 1)
 
-  // 追加した要素が選択され、インスペクタに位置とサイズが出る
+  // 追加した要素が選択され、作業ウィンドウに位置とサイズが出る
   await expect(page.locator('.inspector')).toContainText('位置とサイズ')
 })
 
-test('テーマを切り替えるとスライドの背景色が変わる', async () => {
+test('レイアウト一覧から選んでスライドを追加できる', async () => {
+  await page.getByRole('button', { name: 'スライドのレイアウトを選ぶ' }).click()
+  // 2 段組み＝タイトル + 本文 2 つ。ここで選んだレイアウトが以降の「新しいスライド」の既定になる
+  await page.getByRole('menuitem', { name: '2 段組み' }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(3)
+  await expect(page.locator('.canvas-stage .slide-element')).toHaveCount(3)
+  // 枚数を前提にしたテストが後ろにあるので、追加した分は消しておく
+  await page.getByRole('button', { name: '削除', exact: true }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(2)
+})
+
+test('デザインタブのテーマを切り替えるとスライドの背景色が変わる', async () => {
   const surface = page.locator('.canvas-stage .slide-surface')
   const lightBackground = await surface.evaluate((node) => getComputedStyle(node).backgroundColor)
 
-  await page.getByLabel('テーマ', { exact: true }).selectOption('navy')
+  await page.getByRole('tab', { name: 'デザイン' }).click()
+  await page.getByRole('radio', { name: 'ネイビー' }).click()
   await expect
     .poll(async () => surface.evaluate((node) => getComputedStyle(node).backgroundColor))
     .not.toBe(lightBackground)
+  await expect(page.locator('.status-bar')).toContainText('ネイビー')
 
-  await page.getByLabel('テーマ', { exact: true }).selectOption('light')
+  await page.getByRole('radio', { name: 'ライト' }).click()
+  await page.getByRole('tab', { name: 'ホーム' }).click()
+})
+
+test('リボンのフォントグループで太字にできる', async () => {
+  const target = page.locator('.canvas-stage .slide-element').first()
+  await target.click()
+  const isBold = () =>
+    target.evaluate((node) =>
+      Array.from(node.querySelectorAll<HTMLElement>('*')).some(
+        (element) => getComputedStyle(element).fontWeight === '700',
+      ),
+    )
+  expect(await isBold()).toBe(false)
+  await page.getByRole('button', { name: '太字' }).click()
+  await expect.poll(isBold).toBe(true)
+  await expect(page.getByRole('button', { name: '太字' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: '太字' }).click()
+  await expect.poll(isBold).toBe(false)
+})
+
+test('ステータスバーでノートの表示とズームを変えられる', async () => {
+  await expect(page.locator('.notes-pane')).toHaveCount(1)
+  await page.getByRole('button', { name: 'ノート' }).click()
+  await expect(page.locator('.notes-pane')).toHaveCount(0)
+  await page.getByRole('button', { name: 'ノート' }).click()
+  await expect(page.locator('.notes-pane')).toHaveCount(1)
+
+  // 手動ズーム 100% でスライドは論理サイズ（1280px）そのままになる
+  await page.getByLabel('ズーム').fill('100')
+  await expect(page.locator('.canvas-stage')).toHaveCSS('width', '1280px')
+  await expect(page.locator('.zoom-value')).toHaveText('100%')
+  // 画面に合わせるに戻すと縮む
+  await page.getByRole('button', { name: '画面に合わせる' }).click()
+  await expect.poll(() => page.locator('.canvas-stage').evaluate((node) => node.clientWidth)).toBeLessThan(1280)
 })
 
 test('テキストをその場で編集して反映される', async () => {
@@ -160,7 +207,7 @@ test('保存すると .pslide として書き出され、内容を読み戻せ�
 
 test('編集すると自動保存でファイルが更新される', async () => {
   const before = readDeckFile(deckPath).slides.length
-  await page.getByRole('button', { name: 'スライドを追加' }).click()
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
 
   // 自動保存は 1.5 秒のデバウンス後に走る
   await expect.poll(() => readDeckFile(deckPath).slides.length, { timeout: 15_000 }).toBe(before + 1)
@@ -176,7 +223,7 @@ test('アプリ外で書き換えられたファイルを自動保存で上書�
 
   // 競合ダイアログでは「キャンセル」（index 3）を選ぶ
   await stubMessageBox(app, 3)
-  await page.getByRole('button', { name: 'スライドを追加' }).click()
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
 
   // 自動保存が止まり、ディスク上の手入力は残っている
   await expect(page.locator('.save-state')).toContainText('自動保存 停止中', { timeout: 15_000 })
@@ -184,19 +231,19 @@ test('アプリ外で書き換えられたファイルを自動保存で上書�
   expect(statSync(deckPath).mtimeMs).toBe(stampBefore)
 })
 
-test('履歴メニューに保存したファイルが並ぶ', async () => {
-  await page.getByRole('button', { name: '履歴 ▾' }).click()
-  await expect(page.locator('.dropdown.is-left')).toContainText('deck.pslide')
-  // 一覧を閉じるだけ（クリックすると開いてしまうので、開く操作は最後のテストで行う）
-  await page.getByRole('button', { name: '履歴 ▾' }).click()
-  await expect(page.locator('.dropdown.is-left')).toHaveCount(0)
+test('ファイルメニューの「最近使ったファイル」に保存したファイルが並ぶ', async () => {
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await expect(page.locator('.file-menu-recent')).toContainText('deck.pslide')
+  // Esc で閉じるだけ（クリックすると開いてしまうので、開く操作は最後のテストで行う）
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.file-menu')).toHaveCount(0)
 })
 
 test('図形と画像を挿入できる', async () => {
   const before = await page.locator('.canvas-stage .slide-element').count()
 
-  await page.getByRole('button', { name: '図形 ▾' }).click()
-  await page.getByRole('button', { name: '四角形', exact: true }).click()
+  await page.getByRole('button', { name: '図形', exact: true }).click()
+  await page.getByRole('menuitem', { name: '四角形', exact: true }).click()
   await expect(page.locator('.canvas-stage .slide-element')).toHaveCount(before + 1)
   await expect(page.locator('.canvas-stage svg rect')).toHaveCount(1)
 
@@ -212,7 +259,7 @@ test('PowerPoint 形式で書き出せる', async () => {
   const pptxPath = join(workDir, 'deck.pptx')
   await stubSaveDialog(app, pptxPath)
 
-  await page.getByRole('button', { name: '書き出し ▾' }).click()
+  await page.getByRole('tab', { name: 'ファイル' }).click()
   await page.getByRole('button', { name: 'PowerPoint (.pptx)' }).click()
 
   await expect.poll(() => existsSync(pptxPath), { timeout: 60_000 }).toBe(true)
@@ -244,7 +291,7 @@ test('PDF を書き出せる', async () => {
   const pdfPath = join(workDir, 'deck.pdf')
   await stubSaveDialog(app, pdfPath)
 
-  await page.getByRole('button', { name: '書き出し ▾' }).click()
+  await page.getByRole('tab', { name: 'ファイル' }).click()
   await page.getByRole('button', { name: 'PDF' }).click()
 
   await expect.poll(() => existsSync(pdfPath), { timeout: 60_000 }).toBe(true)
@@ -266,7 +313,7 @@ test('PNG を 1 枚ずつ書き出せる', async () => {
   mkdirSync(pngDir, { recursive: true })
   await stubOpenDialog(app, pngDir)
 
-  await page.getByRole('button', { name: '書き出し ▾' }).click()
+  await page.getByRole('tab', { name: 'ファイル' }).click()
   await page.getByRole('button', { name: 'PNG 画像' }).click()
 
   const slideCount = await page.locator('.slide-list-item').count()
@@ -304,12 +351,12 @@ test('編集画面のスクリーンショットを残す', async () => {
   console.log(`スクリーンショット: ${join(workDir, 'editor.png')}`)
 })
 
-test('履歴から選ぶとそのファイルを開ける', async () => {
+test('最近使ったファイルから選ぶとそのファイルを開ける', async () => {
   // 未保存の変更があるので「破棄して続ける」（index 0）を選ばせる
   await stubMessageBox(app, 0)
 
-  await page.getByRole('button', { name: '履歴 ▾' }).click()
-  await page.locator('.dropdown.is-left button').first().click()
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.locator('.file-menu-recent .recent-item').first().click()
 
   // 直前にディスク側へ手で書き込んだタイトルが読み込まれる
   await expect(page.getByLabel('プレゼンテーション名')).toHaveValue('手で書き換えたタイトル')

@@ -8,3 +8,6 @@ release/
 test-results/
 playwright-report/
 tmp/
+
+# Claude Code の個人設定
+.claude/settings.local.json

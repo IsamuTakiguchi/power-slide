@@ -15,6 +15,16 @@ function getMainWindow(): BrowserWindow | null {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
 }
 
+/**
+ * ウィンドウのアイコン。Windows / macOS は実行ファイル側のアイコンが使われるので、
+ * 実質 Linux（とタスクバー）向け。パッケージ時は extraResources で resources/ に置いている。
+ */
+function windowIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(app.getAppPath(), 'build', 'icon.png')
+}
+
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -22,8 +32,10 @@ function createMainWindow(): void {
     minWidth: 1024,
     minHeight: 680,
     show: false,
-    backgroundColor: '#1f232b',
+    // 画面が出るまでの背景。編集画面の作業領域と同じ色にしてちらつきを抑える
+    backgroundColor: '#e6e6e6',
     title: 'Power Slide',
+    icon: windowIconPath(),
     autoHideMenuBar: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

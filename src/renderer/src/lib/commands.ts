@@ -197,7 +197,9 @@ export async function insertImage(): Promise<void> {
 
 // ---------------------------------------------------------------- 発表
 
-export async function startPresenting(): Promise<void> {
+/** スライドショーを始める。fromStart なら 1 枚目から、それ以外は選択中のスライドから。 */
+export async function startPresenting(options: { fromStart?: boolean } = {}): Promise<void> {
+  if (options.fromStart) store().selectSlide(0)
   useUiStore.getState().setPresenting(true)
   await window.api.presenter.enter()
 }

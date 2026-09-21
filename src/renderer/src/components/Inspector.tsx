@@ -352,8 +352,17 @@ export function Inspector() {
   const theme = resolveTheme(themeId, customTheme)
   const selection = slide?.elements.filter((element) => selectedIds.includes(element.id)) ?? []
 
+  const paneTitle =
+    selection.length === 1
+      ? { text: '文字の書式設定', shape: '図形の書式設定', image: '図の書式設定' }[selection[0].type]
+      : selection.length > 1
+        ? '書式設定'
+        : '背景の書式設定'
+
   return (
-    <aside className="inspector">
+    <aside className="inspector task-pane">
+      <div className="pane-header">{paneTitle}</div>
+      <div className="pane-body">
       {selection.length === 0 && (
         <section className="inspector-section">
           <h3>要素</h3>
@@ -384,6 +393,7 @@ export function Inspector() {
         />
         <p className="hint">右端の「/」ボタンでテーマの背景色に戻ります。</p>
       </section>
+      </div>
     </aside>
   )
 }

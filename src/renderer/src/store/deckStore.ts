@@ -13,7 +13,7 @@ import {
   type SlideElement,
   type Theme,
 } from '@shared/deck'
-import { buildSlideFromLayout, createStarterDeck } from '@shared/layouts'
+import { buildSlideFromLayout, createStarterDeck, DEFAULT_LAYOUT_ID } from '@shared/layouts'
 import { newId } from '@shared/id'
 import { resolveTheme } from '@shared/themes'
 import { clamp, SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
@@ -38,6 +38,8 @@ export interface DeckStore {
   future: Deck[]
   /** ドラッグ中は true。この間 editLive() は履歴を積まない。 */
   inTransaction: boolean
+  /** 最後に「新しいスライド」で使ったレイアウト。次回の既定にする。 */
+  lastLayoutId: string
 
   // ---- 基本操作
   /** 履歴を 1 段積んでから deck を書き換える。 */
@@ -133,6 +135,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     past: [],
     future: [],
     inTransaction: false,
+    lastLayoutId: DEFAULT_LAYOUT_ID,
 
     edit: (recipe) => apply(recipe, true),
     editLive: (recipe) => apply(recipe, false),
@@ -220,7 +223,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
       apply((deck) => {
         deck.slides.splice(insertAt, 0, buildSlideFromLayout(layoutId))
       }, true)
-      set({ slideIndex: insertAt, selectedIds: [], editingId: null })
+      set({ slideIndex: insertAt, selectedIds: [], editingId: null, lastLayoutId: layoutId })
     },
 
     duplicateSlide: (index) => {
