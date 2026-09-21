@@ -2,6 +2,7 @@
  * ファイル操作・書き出し・挿入などのコマンド。
  * メニュー（main プロセス）とツールバーの両方から同じ関数を呼ぶ。
  */
+import { platform } from '../platform'
 import {
   createImageElement,
   createShapeElement,
@@ -18,14 +19,14 @@ function store() {
 }
 
 async function showError(message: string): Promise<void> {
-  await window.api.dialog.message({ type: 'error', message })
+  await platform.dialog.message({ type: 'error', message })
 }
 
 /** 未保存の変更があるとき、破棄してよいか確認する。 */
 async function confirmDiscardIfDirty(): Promise<boolean> {
   const { dirty } = store()
   if (!dirty) return true
-  return window.api.deck.confirmDiscard(
+  return platform.deck.confirmDiscard(
     '保存されていない変更があります。破棄して続けますか？',
   )
 }
@@ -38,7 +39,7 @@ export async function newDeck(): Promise<void> {
 
 export async function openDeck(): Promise<void> {
   if (!(await confirmDiscardIfDirty())) return
-  const result = await window.api.deck.open()
+  const result = await platform.deck.open()
   if (result.canceled) return
   if (result.error) {
     await showError(result.error)
@@ -47,14 +48,14 @@ export async function openDeck(): Promise<void> {
   if (!result.deck || !result.filePath) return
   store().loadDeck(result.deck, result.filePath)
   if (result.schemaWarning) {
-    await window.api.dialog.message({ type: 'warning', message: result.schemaWarning })
+    await platform.dialog.message({ type: 'warning', message: result.schemaWarning })
   }
   flashStatus('読み込みました')
 }
 
 export async function openDeckPath(filePath: string): Promise<void> {
   if (!(await confirmDiscardIfDirty())) return
-  const result = await window.api.deck.openPath(filePath)
+  const result = await platform.deck.openPath(filePath)
   if (result.error) {
     await showError(result.error)
     return
@@ -62,14 +63,14 @@ export async function openDeckPath(filePath: string): Promise<void> {
   if (!result.deck || !result.filePath) return
   store().loadDeck(result.deck, result.filePath)
   if (result.schemaWarning) {
-    await window.api.dialog.message({ type: 'warning', message: result.schemaWarning })
+    await platform.dialog.message({ type: 'warning', message: result.schemaWarning })
   }
   flashStatus('読み込みました')
 }
 
 export async function saveDeck(): Promise<boolean> {
   const { deck, filePath, markSaved } = store()
-  const result = await window.api.deck.save(deck, filePath)
+  const result = await platform.deck.save(deck, filePath)
   if (result.canceled) return false
   if (result.error) {
     await showError(result.error)
@@ -85,7 +86,7 @@ export async function saveDeck(): Promise<boolean> {
 
 export async function saveDeckAs(): Promise<boolean> {
   const { deck, markSaved } = store()
-  const result = await window.api.deck.saveAs(deck)
+  const result = await platform.deck.saveAs(deck)
   if (result.canceled) return false
   if (result.error) {
     await showError(result.error)
@@ -110,7 +111,7 @@ const EXPORT_LABEL: Record<ExportKind, string> = {
 export async function exportDeck(kind: ExportKind): Promise<void> {
   const { deck } = store()
   flashStatus(`${EXPORT_LABEL[kind]}を書き出しています…`, 60_000)
-  const result = await window.api.exportDeck[kind](deck)
+  const result = await platform.exportDeck[kind](deck)
   if (result.canceled) {
     useUiStore.getState().setStatus(null)
     return
@@ -165,7 +166,7 @@ export function insertShape(shape: ShapeKind): void {
 }
 
 export async function insertImage(): Promise<void> {
-  const picked = await window.api.image.pick()
+  const picked = await platform.image.pick()
   if (picked.canceled) return
   if (picked.error || !picked.dataUrl || !picked.mime) {
     if (picked.error) await showError(picked.error)
@@ -201,10 +202,10 @@ export async function insertImage(): Promise<void> {
 export async function startPresenting(options: { fromStart?: boolean } = {}): Promise<void> {
   if (options.fromStart) store().selectSlide(0)
   useUiStore.getState().setPresenting(true)
-  await window.api.presenter.enter()
+  await platform.presenter.enter()
 }
 
 export async function stopPresenting(): Promise<void> {
   useUiStore.getState().setPresenting(false)
-  await window.api.presenter.exit()
+  await platform.presenter.exit()
 }

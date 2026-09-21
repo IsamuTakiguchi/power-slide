@@ -1,4 +1,5 @@
 /** アプリメニューから届くコマンドを 1 か所で処理する。 */
+import { platform } from '../platform'
 import { useEffect } from 'react'
 import type { MenuCommand } from '@shared/ipc'
 import { useDeckStore } from '../store/deckStore'
@@ -67,7 +68,7 @@ export function useMenuCommands(): void {
           void insertImage()
           break
         case 'about':
-          void window.api.dialog.message({
+          void platform.dialog.message({
             type: 'info',
             message: 'Power Slide',
             detail:
@@ -78,7 +79,7 @@ export function useMenuCommands(): void {
       }
     }
 
-    const dispose = window.api.onMenuCommand((command) => {
+    const dispose = platform.onMenuCommand((command) => {
       // 発表中はスライド操作系のコマンドを受け付けない
       if (useUiStore.getState().presenting && command !== 'about') return
       handle(command)

@@ -7,6 +7,8 @@ import type { ShapeKind, SlideElement, TextAlign, VerticalAlign } from '@shared/
 import { resolveTheme } from '@shared/themes'
 import { FONT_CHOICES } from '@shared/fonts'
 import { useDeckStore } from '../store/deckStore'
+import { useUiStore } from '../store/uiStore'
+import { Icon } from './Icon'
 
 const FONT_OPTIONS: { label: string; value: string }[] = [
   { label: 'テーマの既定', value: '' },
@@ -348,6 +350,7 @@ export function Inspector() {
   const slide = useDeckStore((state) => state.deck.slides[state.slideIndex])
   const selectedIds = useDeckStore((state) => state.selectedIds)
   const setSlideBackground = useDeckStore((state) => state.setSlideBackground)
+  const toggleInspector = useUiStore((state) => state.toggleInspector)
 
   const theme = resolveTheme(themeId, customTheme)
   const selection = slide?.elements.filter((element) => selectedIds.includes(element.id)) ?? []
@@ -361,7 +364,18 @@ export function Inspector() {
 
   return (
     <aside className="inspector task-pane">
-      <div className="pane-header">{paneTitle}</div>
+      <div className="pane-header">
+        {paneTitle}
+        <button
+          type="button"
+          className="pane-close"
+          aria-label="書式設定を閉じる"
+          title="書式設定を閉じる"
+          onClick={toggleInspector}
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </div>
       <div className="pane-body">
       {selection.length === 0 && (
         <section className="inspector-section">

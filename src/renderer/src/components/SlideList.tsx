@@ -4,14 +4,17 @@
  */
 import { useState } from 'react'
 import { useDeckStore } from '../store/deckStore'
+import { useUiStore } from '../store/uiStore'
 import { SLIDE_WIDTH } from '@shared/geometry'
 import { resolveTheme } from '@shared/themes'
 import { SlideView } from './SlideView'
 
-/** サムネイルの表示幅（px）。 */
+/** サムネイルの表示幅（px）。コンパクト配置では下の帯に横に並ぶので小さくする。 */
 const THUMB_WIDTH = 196
+const THUMB_WIDTH_COMPACT = 112
 
 export function SlideList() {
+  const compact = useUiStore((state) => state.compact)
   const slides = useDeckStore((state) => state.deck.slides)
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
@@ -22,7 +25,7 @@ export function SlideList() {
   const deleteSlide = useDeckStore((state) => state.deleteSlide)
 
   const theme = resolveTheme(themeId, customTheme)
-  const scale = THUMB_WIDTH / SLIDE_WIDTH
+  const scale = (compact ? THUMB_WIDTH_COMPACT : THUMB_WIDTH) / SLIDE_WIDTH
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
 

@@ -2,6 +2,7 @@
  * 「ファイル」タブを押したときに出るメニュー（PowerPoint の Backstage の簡略版）。
  * 左にコマンド、右に最近使ったファイル。
  */
+import { platform } from '../../platform'
 import { useEffect, useState } from 'react'
 import type { RecentFile } from '@shared/ipc'
 import { exportDeck, newDeck, openDeck, openDeckPath, saveDeck, saveDeckAs } from '../../lib/commands'
@@ -39,7 +40,7 @@ export function FileMenu({ close }: { close: () => void }) {
 
   // 開くたびに読み直す（前回起動で増えている可能性があるため）
   useEffect(() => {
-    void window.api.deck.recent().then(setFiles)
+    void platform.deck.recent().then(setFiles)
   }, [])
 
   const run = (action: () => unknown) => () => {
@@ -61,13 +62,20 @@ export function FileMenu({ close }: { close: () => void }) {
           hint="PowerPoint で開ける形式"
           onClick={run(() => exportDeck('pptx'))}
         />
-        <MenuItem icon="export" label="PDF" hint="配布・印刷用" onClick={run(() => exportDeck('pdf'))} />
         <MenuItem
           icon="export"
-          label="PNG 画像"
-          hint="スライドごとに 1 枚"
-          onClick={run(() => exportDeck('png'))}
+          label="PDF"
+          hint={platform.capabilities.nativeFiles ? '配布・印刷用' : 'ブラウザの印刷から「PDF に保存」'}
+          onClick={run(() => exportDeck('pdf'))}
         />
+        {platform.capabilities.exportPng && (
+          <MenuItem
+            icon="export"
+            label="PNG 画像"
+            hint="スライドごとに 1 枚"
+            onClick={run(() => exportDeck('png'))}
+          />
+        )}
       </div>
       <div className="file-menu-recent">
         <div className="file-menu-section">最近使ったファイル</div>

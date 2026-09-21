@@ -4,6 +4,7 @@
  */
 import { useDeckStore } from '../store/deckStore'
 import { saveDeck } from '../lib/commands'
+import { platform } from '../platform'
 import { Icon } from './Icon'
 
 export function TitleBar() {
@@ -25,12 +26,20 @@ export function TitleBar() {
         : '保存済み'
       : '未保存（保存先なし）'
 
-  // 保存先が決まっていれば自動保存が効く（ファイル外の変更を検知したときは止まる）
-  const autoSaveState = autoSavePaused ? 'paused' : filePath ? 'on' : 'off'
-  const autoSaveText = { on: 'オン', off: 'オフ', paused: '停止中' }[autoSaveState]
+  // 保存先が決まっていれば自動保存が効く（ファイル外の変更を検知したときは止まる）。
+  // Web 版は保存先が無くてもブラウザ内に下書きを残す
+  const autoSaveState = autoSavePaused
+    ? 'paused'
+    : filePath
+      ? 'on'
+      : platform.capabilities.draftAutosave
+        ? 'draft'
+        : 'off'
+  const autoSaveText = { on: 'オン', off: 'オフ', draft: '下書き', paused: '停止中' }[autoSaveState]
   const autoSaveHint = {
     on: '編集が止まると自動で保存します',
     off: '一度保存すると自動保存が有効になります',
+    draft: '編集中の内容をこのブラウザ内に残します（ファイルには保存されません）',
     paused: 'アプリの外でファイルが変更されたため止めています',
   }[autoSaveState]
 

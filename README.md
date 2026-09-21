@@ -54,6 +54,35 @@ PowerPoint に倣った構成です。上からタイトルバー（自動保存
 | PDF | 1 スライド = 1 ページ。配布・印刷用 |
 | PNG | スライドごとに 1280×720 の画像 |
 
+## Web 版（スマホ・タブレット・ブラウザ）
+
+同じアプリをブラウザで動く形（PWA）でも公開しています。
+
+**https://isamutakiguchi.github.io/power-slide/**
+
+スマホで開き「ホーム画面に追加」（iPhone は共有メニュー、Android はブラウザのメニュー）すると、
+アイコン付きでアプリのように起動し、一度開いたあとはオフラインでも使えます。
+画面が狭いときはリボンが横スクロール、スライド一覧が下の帯、書式設定が下から出るシートになります。
+スライドショーは画面のタップで送れます（左端 3 割で戻る）。
+
+デスクトップ版との違い:
+
+| 項目 | デスクトップ版 | Web 版 |
+| --- | --- | --- |
+| ファイルの保存 | `.pslide` に直接保存・自動保存 | Chrome / Edge / Android は同じ。iPhone の Safari は「ダウンロード」で受け渡し |
+| 下書き | — | 保存先が無くても編集中の内容をブラウザ内に残し、次回開いたとき復元する |
+| `.pptx` 書き出し | ファイルに保存 | ブラウザ内で組み立ててダウンロード |
+| PDF 書き出し | ファイルに保存 | ブラウザの印刷ダイアログで「PDF に保存」 |
+| PNG 書き出し | あり | なし |
+| 向いている用途 | 作成・編集全般 | 閲覧・発表・軽い修正 |
+
+ブラウザ内の下書きは、そのブラウザのサイトデータを消すと失われます。大事な内容は
+「保存」でファイルにしてください。
+
+公開は `.github/workflows/pages.yml` が行います（main に入るたびに `npm run build:web` の結果を
+GitHub Pages に置く）。GitHub Pages の無料枠は公開リポジトリが対象なので、リポジトリは
+Public にしておく必要があります。手元で試すには `npm run dev:web` です。
+
 ## キーボード操作
 
 **編集画面**
@@ -122,15 +151,18 @@ OS 標準フォントに任せると文字幅と行の折り返し位置が環�
 
 ```bash
 npm install          # 依存関係のインストール
-npm run dev          # 開発モードで起動（HMR あり）
+npm run dev          # デスクトップ版を開発モードで起動（HMR あり）
+npm run dev:web      # Web 版を開発モードで起動（ブラウザで http://localhost:5173/power-slide/）
 npm run typecheck    # TypeScript の型チェック
 npm run lint         # ESLint
 npm run build        # main / preload / renderer をビルド
-npm run test:smoke   # ビルドしてから E2E スモークテスト（Playwright + Electron）
+npm run build:web    # Web 版を dist-web/ にビルド（Service Worker と manifest 込み）
+npm run test:smoke   # 両方をビルドしてから E2E テスト（Electron 実機 + ブラウザの PC 幅／スマホ幅）
 ```
 
 Linux の CI やヘッドレス環境では `npm run test:smoke` が仮想ディスプレイ（`xvfb-run`）を
-使うので、`xvfb` が必要です。
+使うので、`xvfb` が必要です。Web 版のテストは Playwright の Chromium を使います
+（`npx playwright install chromium`。別の Chromium を使うなら `CHROMIUM_PATH` で指定）。
 
 ### アプリアイコン
 

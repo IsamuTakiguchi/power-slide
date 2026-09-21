@@ -1132,10 +1132,27 @@ input[type="color"] {
 }
 
 .pane-header {
-  padding: 11px 14px 9px;
+  display: flex;
+  align-items: center;
+  padding: 9px 10px 8px 14px;
   border-bottom: 1px solid var(--border);
   font-size: 14px;
   font-weight: 600;
+}
+
+.pane-close {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-dim);
+  background: transparent;
+}
+
+.pane-close:hover:not(:disabled) {
+  border-color: transparent;
+  background: #e8e8e8;
 }
 
 .pane-body {
@@ -1379,6 +1396,190 @@ input[type="color"] {
   font-size: 16px;
   line-height: 1.8;
   white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------ タッチ操作 */
+
+/* ドラッグ中にページがスクロールしないようにする */
+.canvas-stage .slide-view {
+  touch-action: none;
+}
+
+@media (pointer: coarse) {
+  .selection-handle {
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+  }
+
+  .presenter-hud {
+    right: 12px;
+    left: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0.9;
+  }
+
+  .presenter-hud button {
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+}
+
+/* ------------------------------------------------------------ コンパクト配置（スマホ） */
+
+.is-compact .title-bar {
+  grid-template-columns: auto 1fr auto;
+  height: 44px;
+  padding: 0 8px;
+  gap: 6px;
+}
+
+.is-compact .autosave,
+.is-compact .title-app-name {
+  display: none;
+}
+
+.is-compact .title-bar-center {
+  min-width: 0;
+}
+
+.is-compact .title-bar .deck-title {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.is-compact .save-state {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.is-compact .ribbon-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.is-compact .ribbon-tab {
+  flex-shrink: 0;
+  padding: 0 10px;
+}
+
+.is-compact .ribbon-body {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ドロップダウンは画面下から出すシートにする（リボンの横スクロールで切れないように） */
+.is-compact .dropdown,
+.is-compact .file-menu {
+  position: fixed;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 80;
+  width: auto;
+  max-height: 70vh;
+  overflow-y: auto;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -8px 30px rgb(0 0 0 / 25%);
+}
+
+.is-compact .file-menu {
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
+.is-compact .layout-gallery,
+.is-compact .shape-gallery {
+  width: auto;
+}
+
+.is-compact .app-body {
+  flex-direction: column;
+}
+
+.is-compact .app-main {
+  order: 1;
+}
+
+.is-compact .slide-list {
+  width: auto;
+  height: 92px;
+  flex-direction: row;
+  order: 2;
+  border-top: 1px solid var(--border);
+  border-right: none;
+}
+
+.is-compact .slide-list-header {
+  display: none;
+}
+
+.is-compact .slide-list-items {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.is-compact .slide-list-item {
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+}
+
+.is-compact .slide-number {
+  width: auto;
+  padding: 0;
+  text-align: center;
+}
+
+.is-compact .slide-item-actions {
+  display: none !important;
+}
+
+.is-compact .canvas-area {
+  padding: 12px;
+}
+
+.is-compact .notes-pane {
+  height: 88px;
+}
+
+.is-compact .task-pane {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 70;
+  width: auto;
+  max-height: 70vh;
+  border-top: 1px solid var(--border);
+  border-left: none;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -8px 30px rgb(0 0 0 / 25%);
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: rgb(0 0 0 / 25%);
+}
+
+.is-compact .status-bar {
+  height: 30px;
+}
+
+.is-compact .status-item.is-optional,
+.is-compact .zoom-control input[type="range"] {
+  display: none;
 }
 
 /* ------------------------------------------------------------ 書き出し専用ルート */

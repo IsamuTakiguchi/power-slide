@@ -2,13 +2,15 @@
  * 自動保存。
  *
  * 手で直したファイルを黙って潰さないことを最優先にしている:
- * ・保存先が未確定（新規デッキ）のときは自動保存しない
- * ・書き込む直前に main 側が mtime/サイズを照合し、アプリ外で変わっていたら上書きしない
+ * ・保存先が未確定（新規デッキ）のときはファイルには書かない
+ *   （Web 版はブラウザ内の下書きだけ更新する）
+ * ・書き込む直前に更新時刻を照合し、アプリ外で変わっていたら上書きしない
  * ・その場合は自動保存を止め、ユーザーに「読み直す／上書きする／別名で保存する」を訊く
  */
 import { useEffect, useRef } from 'react'
 import { useDeckStore } from '../store/deckStore'
 import { flashStatus } from '../store/uiStore'
+import { platform } from '../platform'
 
 /** 変更が止まってから保存するまでの待ち時間。 */
 const DEBOUNCE_MS = 1500
@@ -24,14 +26,16 @@ export function useAutoSave(): void {
   const savingRef = useRef(false)
 
   useEffect(() => {
-    if (!dirty || !filePath || autoSavePaused || inTransaction) return
+    if (!dirty || autoSavePaused || inTransaction) return
+    // 保存先が無いときは、下書きを残せるプラットフォームだけ動かす
+    if (!filePath && !platform.capabilities.draftAutosave) return
 
     const timer = setTimeout(async () => {
       if (savingRef.current) return
       savingRef.current = true
       try {
         const state = useDeckStore.getState()
-        const result = await window.api.deck.autoSave(state.deck, state.filePath)
+        const result = await platform.deck.autoSave(state.deck, state.filePath)
 
         if (result.status === 'saved' && result.filePath) {
           // 自動保存の完了後にさらに編集されている場合があるので、
@@ -45,10 +49,10 @@ export function useAutoSave(): void {
         if (result.status === 'conflict' && result.filePath) {
           useDeckStore.getState().setAutoSavePaused(true)
           flashStatus('ファイルがアプリの外で変更されています', 6000)
-          const resolution = await window.api.deck.resolveConflict(state.deck, result.filePath)
+          const resolution = await platform.deck.resolveConflict(state.deck, result.filePath)
           const store = useDeckStore.getState()
           if (resolution.error) {
-            await window.api.dialog.message({ type: 'error', message: resolution.error })
+            await platform.dialog.message({ type: 'error', message: resolution.error })
             return
           }
           switch (resolution.resolution) {
@@ -80,7 +84,7 @@ export function useAutoSave(): void {
 
         if (result.status === 'error' && result.error) {
           useDeckStore.getState().setAutoSavePaused(true)
-          await window.api.dialog.message({
+          await platform.dialog.message({
             type: 'error',
             message: '自動保存に失敗しました。',
             detail: result.error,
