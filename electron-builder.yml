@@ -14,6 +14,12 @@ files:
   - '!node_modules/@types/**'
   - '!node_modules/undici-types/**'
 
+# アイコンは build/icon.png（1024x1024）から各 OS 向けに自動生成される。
+# ウィンドウ側（Linux）で参照できるよう、PNG を resources/ にも置く。
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+
 # .pslide をアプリに関連付ける
 fileAssociations:
   - ext: pslide

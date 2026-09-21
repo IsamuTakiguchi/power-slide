@@ -72,7 +72,7 @@ export function buildMenu(getWindow: () => BrowserWindow | null): Menu {
     {
       label: '挿入',
       submenu: [
-        { label: 'スライドを追加', accelerator: 'CmdOrCtrl+M', click: send('addSlide') },
+        { label: '新しいスライド', accelerator: 'CmdOrCtrl+M', click: send('addSlide') },
         { type: 'separator' },
         { label: 'テキストボックス', accelerator: 'CmdOrCtrl+T', click: send('insertText') },
         { label: '画像…', click: send('insertImage') },

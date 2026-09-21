@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Power Slide のアプリアイコン（原本）。
+  オレンジの角丸に白いスライド、右下に再生バッジ。
+  build/icon.png（1024x1024）は scripts/render-icon.mjs でここから生成する。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E0603C"/>
+      <stop offset="1" stop-color="#B7472A"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F7F0ED"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="20" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <!-- スライド -->
+  <g filter="url(#shadow)">
+    <rect x="176" y="248" width="672" height="432" rx="44" fill="url(#card)"/>
+  </g>
+  <rect x="252" y="322" width="304" height="60" rx="18" fill="#C43E1C"/>
+  <rect x="252" y="424" width="424" height="40" rx="14" fill="#F1A48C"/>
+  <rect x="252" y="500" width="330" height="40" rx="14" fill="#F1A48C"/>
+
+  <!-- 再生バッジ -->
+  <circle cx="776" cy="700" r="128" fill="#8F2E12"/>
+  <circle cx="776" cy="700" r="128" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="10"/>
+  <path d="M736 628 L840 700 L736 772 Z" fill="#FFFFFF"/>
+</svg>

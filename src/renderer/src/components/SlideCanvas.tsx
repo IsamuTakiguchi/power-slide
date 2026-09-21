@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useDeckStore } from '../store/deckStore'
+import { useUiStore } from '../store/uiStore'
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
 import type { SlideElement } from '@shared/deck'
 import { resolveTheme } from '@shared/themes'
@@ -75,29 +76,39 @@ export function SlideCanvas() {
   const pushHistory = useDeckStore((state) => state.pushHistory)
   const endTransaction = useDeckStore((state) => state.endTransaction)
 
+  const zoom = useUiStore((state) => state.zoom)
+  const setEffectiveZoom = useUiStore((state) => state.setEffectiveZoom)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.6)
   const [guides, setGuides] = useState<Guide[]>([])
   const dragRef = useRef<DragState | null>(null)
 
-  // 表示領域に合わせて倍率を決める
+  // 倍率を決める。ズームが自動なら表示領域に合わせ、手動ならその値を使う
   useLayoutEffect(() => {
     const node = containerRef.current
     if (!node) return
     const update = () => {
-      const padding = 48
-      const available = {
-        width: node.clientWidth - padding,
-        height: node.clientHeight - padding,
+      let next: number
+      if (zoom === null) {
+        const padding = 48
+        const available = {
+          width: node.clientWidth - padding,
+          height: node.clientHeight - padding,
+        }
+        const fit = Math.min(available.width / SLIDE_WIDTH, available.height / SLIDE_HEIGHT)
+        next = Math.max(0.2, Math.min(1.5, fit))
+      } else {
+        next = zoom / 100
       }
-      const next = Math.min(available.width / SLIDE_WIDTH, available.height / SLIDE_HEIGHT)
-      setScale(Math.max(0.2, Math.min(1.5, next)))
+      setScale(next)
+      setEffectiveZoom(Math.round(next * 100))
     }
     update()
     const observer = new ResizeObserver(update)
     observer.observe(node)
     return () => observer.disconnect()
-  }, [])
+  }, [zoom, setEffectiveZoom])
 
   /** ドラッグ対象（選択中の要素）の開始矩形を集める。 */
   const collectOrigin = useCallback(

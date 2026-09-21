@@ -54,10 +54,11 @@ export function useMenuCommands(): void {
           else store.duplicateSlide()
           break
         case 'addSlide':
-          store.addSlide('titleBody')
+          store.addSlide(store.lastLayoutId)
           break
         case 'present':
-          void startPresenting()
+          // F5 は PowerPoint と同じく 1 枚目から
+          void startPresenting({ fromStart: true })
           break
         case 'insertText':
           insertTextBox()

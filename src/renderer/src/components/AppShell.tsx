@@ -1,4 +1,7 @@
-/** 編集画面の全体レイアウト。発表中は Presenter を全画面で重ねる。 */
+/**
+ * 編集画面の全体レイアウト。上からタイトルバー・リボン・本体（一覧／キャンバス／書式設定）・
+ * ステータスバー。発表中は Presenter を全画面で重ねる。
+ */
 import { useEffect } from 'react'
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
@@ -6,11 +9,13 @@ import { useAutoSave } from '../hooks/useAutoSave'
 import { useMenuCommands } from '../hooks/useMenuCommands'
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts'
 import { useFileLaunch } from '../hooks/useFileLaunch'
-import { Toolbar } from './Toolbar'
+import { TitleBar } from './TitleBar'
+import { Ribbon } from './Ribbon'
 import { SlideList } from './SlideList'
 import { SlideCanvas } from './SlideCanvas'
 import { Inspector } from './Inspector'
 import { NotesPane } from './NotesPane'
+import { StatusBar } from './StatusBar'
 import { Presenter } from './Presenter'
 
 export function AppShell() {
@@ -38,7 +43,8 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <Toolbar />
+      <TitleBar />
+      <Ribbon />
       <div className="app-body">
         <SlideList />
         <main className="app-main">
@@ -47,6 +53,7 @@ export function AppShell() {
         </main>
         <Inspector />
       </div>
+      <StatusBar />
       {status && <div className="status-toast">{status}</div>}
       {presenting && <Presenter />}
     </div>
