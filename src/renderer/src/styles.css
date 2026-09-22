@@ -223,12 +223,19 @@ input[type="color"] {
 
 /* ------------------------------------------------------------ タイトルバー */
 
+/*
+ * ホーム画面に追加したアプリ（standalone）では、画面が端末のステータスバー
+ * （時計・電池）の下まで広がる。その高さぶん上に余白を入れないと、
+ * タイトルバーの文字と時計が重なってにじんで見える。
+ * ブラウザの中で開いているときや PC では env() が 0 になるので影響しない。
+ */
 .title-bar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 40px;
-  padding: 0 10px;
+  height: calc(40px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(10px, env(safe-area-inset-right, 0px)) 0
+    max(10px, env(safe-area-inset-left, 0px));
   color: #fff;
   background: var(--pp);
 }
@@ -345,8 +352,8 @@ input[type="color"] {
   padding: 2px 10px;
   border-radius: 999px;
   font-size: 12px;
-  color: rgb(255 255 255 / 88%);
-  background: rgb(255 255 255 / 14%);
+  color: #fff;
+  background: rgb(255 255 255 / 18%);
   white-space: nowrap;
 }
 
@@ -382,7 +389,7 @@ input[type="color"] {
   border: 1px solid transparent;
   border-bottom: none;
   border-radius: 4px 4px 0 0;
-  color: rgb(255 255 255 / 92%);
+  color: #fff;
   background: transparent;
   font-size: 13px;
   white-space: nowrap;
@@ -1370,6 +1377,8 @@ input[type="color"] {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 全画面にできない端末では、上端が時計などに重ならないようにする */
+  padding-top: env(safe-area-inset-top, 0px);
   color: #e8ecf3;
   background: #000;
 }
@@ -1506,8 +1515,9 @@ input[type="color"] {
 
 .is-compact .title-bar {
   grid-template-columns: auto 1fr auto;
-  height: 44px;
-  padding: 0 8px;
+  height: calc(44px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 0
+    max(8px, env(safe-area-inset-left, 0px));
   gap: 6px;
 }
 
@@ -1524,12 +1534,13 @@ input[type="color"] {
   width: 100%;
   min-width: 0;
   height: 32px;
+  font-size: 15px;
   text-align: left;
 }
 
 .is-compact .save-state {
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 3px 9px;
+  font-size: 12px;
 }
 
 .is-compact .qat button {
@@ -1557,7 +1568,6 @@ input[type="color"] {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
 }
 
@@ -1805,7 +1815,6 @@ input[type="color"] {
   padding: 6px 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
 }
 
 .is-phone .slide-list-item {
@@ -1956,7 +1965,7 @@ input[type="color"] {
 
 @media (max-height: 520px) {
   .is-compact .title-bar {
-    height: 36px;
+    height: calc(36px + env(safe-area-inset-top, 0px));
   }
 
   .is-compact .ribbon-tabs {
