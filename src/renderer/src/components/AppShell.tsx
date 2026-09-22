@@ -2,8 +2,11 @@
  * 編集画面の全体レイアウト。上からタイトルバー・リボン・本体（一覧／キャンバス／書式設定）・
  * ステータスバー。発表中は Presenter を全画面で重ねる。
  *
- * 幅が狭い（スマホ）ときはコンパクト配置に切り替える: リボンは横スクロール、
- * スライド一覧は下の帯、書式設定は下から出るシートになる。
+ * 画面の広さで 3 段階に変わる（見た目の切り替えは styles.css 側）:
+ *
+ * - desktop（901px 以上）: PC のリボン UI そのまま
+ * - tablet（601〜900px）: リボンは 1 行のボタン列、書式設定は下から出るシート
+ * - phone（600px 以下）: さらにリボンとタブを画面下に移し、スライド一覧を下の帯にする
  */
 import { useEffect } from 'react'
 import { useDeckStore } from '../store/deckStore'
@@ -22,18 +25,53 @@ import { NotesPane } from './NotesPane'
 import { StatusBar } from './StatusBar'
 import { Presenter } from './Presenter'
 
-/** これより狭ければコンパクト配置。タブレット縦持ちもこちらに入る。 */
+/** これより狭ければリボンを折りたたむ（タブレット縦持ちもこちらに入る）。 */
 const COMPACT_QUERY = '(max-width: 900px)'
+/** これより狭ければスマホ配置。 */
+const PHONE_QUERY = '(max-width: 600px)'
 
-function useCompactLayout(): void {
-  const setCompact = useUiStore((state) => state.setCompact)
+function useResponsiveLayout(): void {
+  const setLayout = useUiStore((state) => state.setLayout)
   useEffect(() => {
-    const query = window.matchMedia(COMPACT_QUERY)
-    const apply = () => setCompact(query.matches)
+    const compactQuery = window.matchMedia(COMPACT_QUERY)
+    const phoneQuery = window.matchMedia(PHONE_QUERY)
+    const apply = () =>
+      setLayout(phoneQuery.matches ? 'phone' : compactQuery.matches ? 'tablet' : 'desktop')
     apply()
-    query.addEventListener('change', apply)
-    return () => query.removeEventListener('change', apply)
-  }, [setCompact])
+    compactQuery.addEventListener('change', apply)
+    phoneQuery.addEventListener('change', apply)
+    return () => {
+      compactQuery.removeEventListener('change', apply)
+      phoneQuery.removeEventListener('change', apply)
+    }
+  }, [setLayout])
+}
+
+/**
+ * スマホのソフトキーボードが出ている間は、その高さぶん画面を詰める。
+ *
+ * キーボードは表示領域（visualViewport）だけを縮めるので、そのままだと
+ * ノート欄や下のリボンがキーボードの下に隠れてしまう。
+ */
+function useKeyboardInset(compact: boolean): void {
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!compact || !viewport) return
+    const root = document.documentElement
+    const apply = () => {
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      // ブラウザ UI の出入りで数十 px 変わることがあるので、キーボードと言える大きさだけ拾う
+      root.style.setProperty('--keyboard-inset', inset > 80 ? `${Math.round(inset)}px` : '0px')
+    }
+    apply()
+    viewport.addEventListener('resize', apply)
+    viewport.addEventListener('scroll', apply)
+    return () => {
+      viewport.removeEventListener('resize', apply)
+      viewport.removeEventListener('scroll', apply)
+      root.style.removeProperty('--keyboard-inset')
+    }
+  }, [compact])
 }
 
 export function AppShell() {
@@ -42,11 +80,13 @@ export function AppShell() {
   const dirty = useDeckStore((state) => state.dirty)
   const presenting = useUiStore((state) => state.presenting)
   const status = useUiStore((state) => state.status)
+  const layout = useUiStore((state) => state.layout)
   const compact = useUiStore((state) => state.compact)
   const inspectorOpen = useUiStore((state) => state.inspectorOpen)
   const toggleInspector = useUiStore((state) => state.toggleInspector)
 
-  useCompactLayout()
+  useResponsiveLayout()
+  useKeyboardInset(compact)
   useAutoSave()
   useMenuCommands()
   useEditorShortcuts()
@@ -64,7 +104,11 @@ export function AppShell() {
   }, [dirty])
 
   return (
-    <div className={['app-shell', compact ? 'is-compact' : ''].join(' ').trim()}>
+    <div
+      className={['app-shell', compact ? 'is-compact' : '', layout === 'phone' ? 'is-phone' : '']
+        .filter(Boolean)
+        .join(' ')}
+    >
       <TitleBar />
       <Ribbon />
       <div className="app-body">

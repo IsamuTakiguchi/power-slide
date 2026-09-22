@@ -6,14 +6,19 @@ import { useState } from 'react'
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
 import { SLIDE_WIDTH } from '@shared/geometry'
+import { DEFAULT_LAYOUT_ID } from '@shared/layouts'
 import { resolveTheme } from '@shared/themes'
+import { Icon } from './Icon'
 import { SlideView } from './SlideView'
 
-/** サムネイルの表示幅（px）。コンパクト配置では下の帯に横に並ぶので小さくする。 */
-const THUMB_WIDTH = 196
-const THUMB_WIDTH_COMPACT = 112
+/**
+ * サムネイルの表示幅（px）。タブレットでは一覧を細く、スマホでは下の帯に横に並べるので
+ * さらに小さくする。
+ */
+const THUMB_WIDTH = { desktop: 196, tablet: 150, phone: 104 }
 
 export function SlideList() {
+  const layout = useUiStore((state) => state.layout)
   const compact = useUiStore((state) => state.compact)
   const slides = useDeckStore((state) => state.deck.slides)
   const themeId = useDeckStore((state) => state.deck.themeId)
@@ -21,11 +26,13 @@ export function SlideList() {
   const slideIndex = useDeckStore((state) => state.slideIndex)
   const selectSlide = useDeckStore((state) => state.selectSlide)
   const moveSlide = useDeckStore((state) => state.moveSlide)
+  const addSlide = useDeckStore((state) => state.addSlide)
+  const lastLayoutId = useDeckStore((state) => state.lastLayoutId)
   const duplicateSlide = useDeckStore((state) => state.duplicateSlide)
   const deleteSlide = useDeckStore((state) => state.deleteSlide)
 
   const theme = resolveTheme(themeId, customTheme)
-  const scale = (compact ? THUMB_WIDTH_COMPACT : THUMB_WIDTH) / SLIDE_WIDTH
+  const scale = THUMB_WIDTH[layout] / SLIDE_WIDTH
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [dropAt, setDropAt] = useState<number | null>(null)
 
@@ -92,6 +99,20 @@ export function SlideList() {
             </div>
           </li>
         ))}
+        {/* タッチ操作ではリボンまで戻らずに増やせるよう、帯の末尾に追加タイルを置く */}
+        {compact && (
+          <li className="slide-list-add">
+            <button
+              type="button"
+              aria-label="スライドを追加"
+              title="スライドを追加"
+              onClick={() => addSlide(lastLayoutId ?? DEFAULT_LAYOUT_ID)}
+            >
+              <Icon name="newSlide" size={18} />
+              <span>追加</span>
+            </button>
+          </li>
+        )}
       </ol>
     </aside>
   )

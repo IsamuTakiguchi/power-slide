@@ -38,7 +38,18 @@ interface DragState {
   startY: number
   /** ドラッグ開始時点の対象要素の矩形。 */
   origin: Map<string, Rect>
+  /** 触った要素（タップだけで終わったときの判定に使う）。 */
+  id?: string
+  /** 指かペンか（タップで文字編集に入るのはタッチのときだけ）。 */
+  pointerType?: string
+  /** 触る前からその要素だけを選んでいたか。 */
+  wasSelected?: boolean
+  /** 指が動いた（＝ドラッグだった）か。 */
+  moved?: boolean
 }
+
+/** これ以上動いたらタップではなくドラッグとみなす（画面 px）。 */
+const TAP_SLOP = 5
 
 function resizeRect(origin: Rect, handle: HandleId, dx: number, dy: number): Rect {
   let { x, y, w, h } = origin
@@ -91,10 +102,13 @@ export function SlideCanvas() {
     const update = () => {
       let next: number
       if (zoom === null) {
-        const padding = 48
+        // 余白は画面の広さで変わる（スマホでは狭い）ので、実際の padding を測って引く
+        const style = getComputedStyle(node)
+        const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+        const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
         const available = {
-          width: node.clientWidth - padding,
-          height: node.clientHeight - padding,
+          width: node.clientWidth - padX,
+          height: node.clientHeight - padY,
         }
         const fit = Math.min(available.width / SLIDE_WIDTH, available.height / SLIDE_HEIGHT)
         next = Math.max(0.2, Math.min(1.5, fit))
@@ -147,6 +161,10 @@ export function SlideCanvas() {
       startX: event.clientX,
       startY: event.clientY,
       origin: collectOrigin(ids),
+      id,
+      pointerType: event.pointerType,
+      // 指で操作するときは「選択 → もう一度タップで編集」にしたいので、前の選択状態を覚えておく
+      wasSelected: !additive && selectedIds.length === 1 && selectedIds[0] === id,
     }
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
@@ -170,6 +188,12 @@ export function SlideCanvas() {
     const onMove = (event: PointerEvent) => {
       const drag = dragRef.current
       if (!drag) return
+      if (
+        Math.abs(event.clientX - drag.startX) > TAP_SLOP ||
+        Math.abs(event.clientY - drag.startY) > TAP_SLOP
+      ) {
+        drag.moved = true
+      }
       const dx = (event.clientX - drag.startX) / scale
       const dy = (event.clientY - drag.startY) / scale
       const store = useDeckStore.getState()
@@ -220,10 +244,21 @@ export function SlideCanvas() {
     }
 
     const onUp = () => {
-      if (!dragRef.current) return
+      const drag = dragRef.current
+      if (!drag) return
       dragRef.current = null
       setGuides([])
       endTransaction()
+
+      // 指で、選択済みのテキストを動かさずにタップしたら文字編集に入る
+      // （マウスはダブルクリックのまま）
+      if (drag.kind !== 'move' || drag.moved || !drag.id) return
+      if (drag.pointerType === 'mouse' || !drag.wasSelected) return
+      const store = useDeckStore.getState()
+      const target = store.deck.slides[store.slideIndex]?.elements.find(
+        (element) => element.id === drag.id,
+      )
+      if (target?.type === 'text') store.setEditing(drag.id)
     }
 
     window.addEventListener('pointermove', onMove)
