@@ -27,6 +27,13 @@ export default defineConfig({
       testMatch: /web\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], baseURL: WEB_URL, launchOptions },
     },
+    // Web 版（タブレット。リボンは 1 行、スライド一覧は縦のまま）
+    // このコンテナには Chromium しか無いので、Chromium 系のタブレット端末を選んでいる
+    {
+      name: 'web-tablet',
+      testMatch: /web\.spec\.ts/,
+      use: { ...devices['Galaxy Tab S4'], baseURL: WEB_URL, launchOptions },
+    },
     // Web 版（スマホ。タッチ操作・狭い画面）
     {
       name: 'web-mobile',

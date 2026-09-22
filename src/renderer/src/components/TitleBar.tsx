@@ -26,6 +26,9 @@ export function TitleBar() {
         : '保存済み'
       : '未保存（保存先なし）'
 
+  // スマホでは横幅が足りないので短い言い方にする（CSS でどちらかだけを出す）
+  const saveLabelShort = autoSavePaused ? '停止中' : filePath && !dirty ? '保存済み' : '未保存'
+
   // 保存先が決まっていれば自動保存が効く（ファイル外の変更を検知したときは止まる）。
   // Web 版は保存先が無くてもブラウザ内に下書きを残す
   const autoSaveState = autoSavePaused
@@ -88,7 +91,8 @@ export function TitleBar() {
           className={['save-state', autoSavePaused ? 'is-paused' : dirty ? 'is-dirty' : 'is-clean'].join(' ')}
           title={filePath ?? '保存先が決まっていません'}
         >
-          {saveLabel}
+          <span className="save-state-long">{saveLabel}</span>
+          <span className="save-state-short">{saveLabelShort}</span>
         </span>
       </div>
     </header>

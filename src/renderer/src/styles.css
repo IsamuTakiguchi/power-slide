@@ -90,6 +90,9 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  /* スマホで要素をドラッグしたときに、引っ張って更新やバウンドが起きないようにする */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -188,6 +191,21 @@ input[type="color"] {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/*
+ * スマホのブラウザはアドレスバーの出入りで表示領域が変わる。100vh だと下のバーが
+ * 隠れてしまうので、実際に見えている高さ（dvh）に合わせる。
+ */
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+  }
+
+  /* ソフトキーボードが出ている間はその高さぶん詰める（AppShell が値を入れる） */
+  .app-shell.is-compact {
+    height: calc(100dvh - var(--keyboard-inset, 0px));
+  }
 }
 
 .app-body {
@@ -367,6 +385,7 @@ input[type="color"] {
   color: rgb(255 255 255 / 92%);
   background: transparent;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .ribbon-tab:hover:not(:disabled) {
@@ -389,6 +408,35 @@ input[type="color"] {
 .ribbon-tab.is-file.is-open,
 .ribbon-tab.is-file.is-open:hover {
   background: var(--pp-darker);
+}
+
+.ribbon-tabs-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.ribbon-collapse {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  background: transparent;
+}
+
+.ribbon-collapse:hover:not(:disabled) {
+  border-color: transparent;
+  background: rgb(255 255 255 / 16%);
+}
+
+/* 開いているときは「たたむ」向き（上）にする */
+.ribbon:not(.is-collapsed) .ribbon-collapse .icon {
+  transform: rotate(180deg);
 }
 
 /* overflow を隠すとドロップダウン（レイアウト一覧など）が切れるので visible のまま */
@@ -1243,6 +1291,7 @@ input[type="color"] {
 }
 
 .status-item {
+  flex-shrink: 0;
   padding: 0 8px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1250,7 +1299,9 @@ input[type="color"] {
 
 .status-button {
   display: inline-flex;
+  flex-shrink: 0;
   height: 20px;
+  white-space: nowrap;
   gap: 4px;
   align-items: center;
   padding: 0 6px;
@@ -1278,6 +1329,7 @@ input[type="color"] {
 
 .zoom-control {
   display: flex;
+  flex-shrink: 0;
   gap: 2px;
   align-items: center;
   margin-left: 6px;
@@ -1407,9 +1459,21 @@ input[type="color"] {
 
 @media (pointer: coarse) {
   .selection-handle {
-    width: 18px;
-    height: 18px;
-    margin: -9px 0 0 -9px;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+  }
+
+  /* 指で押せる大きさを確保する（PC ではそのまま） */
+  .ribbon-tab,
+  .status-button,
+  .pane-close,
+  .qat button {
+    min-height: 32px;
+  }
+
+  .slide-list-item {
+    min-height: 44px;
   }
 
   .presenter-hud {
@@ -1426,7 +1490,19 @@ input[type="color"] {
   }
 }
 
-/* ------------------------------------------------------------ コンパクト配置（スマホ） */
+/* ------------------------------------------------------------ レスポンシブ配置 */
+
+/*
+ * 画面の広さで 3 段階に変える（AppShell が幅を見て class を付ける）。
+ *
+ * - 既定（901px 以上）… PC のリボン UI
+ * - .is-compact（900px 以下・タブレット）… リボンを 1 行のボタン列にまとめ、
+ *   ドロップダウンと書式設定を下から出るシートにする
+ * - .is-phone（600px 以下・スマホ）… さらにリボンとタブを画面下（親指の届く位置）に移し、
+ *   スライド一覧を下の帯にする
+ */
+
+/* --- タイトルバー */
 
 .is-compact .title-bar {
   grid-template-columns: auto 1fr auto;
@@ -1447,6 +1523,7 @@ input[type="color"] {
 .is-compact .title-bar .deck-title {
   width: 100%;
   min-width: 0;
+  height: 32px;
   text-align: left;
 }
 
@@ -1455,23 +1532,182 @@ input[type="color"] {
   font-size: 11px;
 }
 
-.is-compact .ribbon-tabs {
+.is-compact .qat button {
+  width: 34px;
+  height: 34px;
+}
+
+/* 保存状態は狭いほど短い言い方にする */
+.save-state-short {
+  display: none;
+}
+
+.is-phone .save-state-long {
+  display: none;
+}
+
+.is-phone .save-state-short {
+  display: inline;
+}
+
+/* --- リボンを 1 行のボタン列に折りたたむ */
+
+.is-compact .ribbon-tabs,
+.is-compact .ribbon-body {
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.is-compact .ribbon-tabs::-webkit-scrollbar,
+.is-compact .ribbon-body::-webkit-scrollbar {
+  display: none;
+}
+
+.is-compact .ribbon-tabs {
+  height: 38px;
+  padding: 0 6px;
+}
+
+.is-compact .ribbon-tabs > .menu-anchor {
+  flex-shrink: 0;
 }
 
 .is-compact .ribbon-tab {
   flex-shrink: 0;
-  padding: 0 10px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 14px;
 }
 
+/* タブが横に溢れても押せるように、右端に貼り付けておく */
+.is-compact .ribbon-collapse {
+  position: sticky;
+  right: 0;
+  background: var(--pp);
+  box-shadow: -10px 0 10px var(--pp);
+}
+
+/* グループの枠とラベルを外して、44px 以上のボタンが 1 行に並ぶ形にする */
 .is-compact .ribbon-body {
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  height: 58px;
+  align-items: center;
+  padding: 4px 6px;
 }
 
-/* ドロップダウンは画面下から出すシートにする（リボンの横スクロールで切れないように） */
+.is-compact .ribbon-group {
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+}
+
+.is-compact .ribbon-group-body {
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0;
+  gap: 4px;
+}
+
+.is-compact .ribbon-group-label {
+  display: none;
+}
+
+.is-compact .ribbon-group + .ribbon-group {
+  margin-left: 6px;
+  padding-left: 6px;
+}
+
+.is-compact .ribbon-big {
+  height: 46px;
+  min-width: 0;
+  flex-direction: row;
+  gap: 6px;
+  padding: 0 12px;
+  border-color: var(--border);
+  background: #fff;
+  font-size: 13px;
+}
+
+.is-compact .ribbon-big .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.is-compact .ribbon-small {
+  height: 42px;
+  padding: 0 12px;
+  border-color: var(--border);
+  background: #fff;
+  font-size: 13px;
+}
+
+/* 縦積み（複製／削除など）も 1 行に開く */
+.is-compact .ribbon-small-stack,
+.is-compact .ribbon-rows {
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+}
+
+.is-compact .ribbon-separator {
+  height: 28px;
+}
+
+.is-compact .ribbon-color {
+  height: 42px;
+  padding: 0 12px;
+  border-color: var(--border);
+  background: #fff;
+  font-size: 13px;
+}
+
+.is-compact .ribbon-row select,
+.is-compact .ribbon-row input[type="number"] {
+  height: 42px;
+  font-size: 13px;
+}
+
+.is-compact .font-family {
+  width: 128px;
+}
+
+.is-compact .font-size {
+  width: 62px;
+}
+
+/* 分割ボタンは ▾ を横に付ける（縦に積むと 1 行に収まらない） */
+.is-compact .ribbon-split {
+  flex-direction: row;
+}
+
+.is-compact .ribbon-split .ribbon-big {
+  height: 46px;
+  border-radius: 4px 0 0 4px;
+}
+
+.is-compact .ribbon-split-arrow {
+  width: 30px;
+  height: 46px;
+  border-top: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  background: #fff;
+}
+
+/* 「スライドのサイズ」のような説明表示は狭い画面では省く */
+.is-compact .ribbon-info {
+  display: none;
+}
+
+.is-compact .theme-card {
+  width: 104px;
+  height: 46px;
+}
+
+/* --- ドロップダウンは画面下から出すシートにする（横スクロールで切れないように） */
+
 .is-compact .dropdown,
 .is-compact .file-menu {
   position: fixed;
@@ -1481,7 +1717,8 @@ input[type="color"] {
   left: 0;
   z-index: 80;
   width: auto;
-  max-height: 70vh;
+  max-height: 70dvh;
+  padding-bottom: env(safe-area-inset-bottom);
   overflow-y: auto;
   border-radius: 12px 12px 0 0;
   box-shadow: 0 -8px 30px rgb(0 0 0 / 25%);
@@ -1492,65 +1729,155 @@ input[type="color"] {
   min-height: 0;
 }
 
+/* 下から出ているシートだと分かるように、上端につまみを描く */
+.is-compact .dropdown::before,
+.is-compact .file-menu::before {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 8px auto 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  content: "";
+}
+
+.is-compact .file-menu::before {
+  background: rgb(255 255 255 / 45%);
+}
+
 .is-compact .layout-gallery,
 .is-compact .shape-gallery {
   width: auto;
 }
 
-.is-compact .app-body {
-  flex-direction: column;
+/* シートの項目はタッチで押せる高さにする */
+.is-compact .dropdown button,
+.is-compact .file-menu-item,
+.is-compact .recent-item {
+  min-height: 44px;
 }
 
-.is-compact .app-main {
+/* --- スマホ: リボンとタブを画面下へ、スライド一覧を下の帯へ */
+
+.is-phone > .title-bar {
   order: 1;
 }
 
-.is-compact .slide-list {
+.is-phone > .app-body {
+  order: 2;
+}
+
+.is-phone > .ribbon {
+  order: 3;
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+
+.is-phone > .status-bar {
+  order: 4;
+}
+
+.is-phone .app-body {
+  flex-direction: column;
+}
+
+.is-phone .app-main {
+  order: 1;
+}
+
+.is-phone .slide-list {
   width: auto;
-  height: 92px;
+  height: 96px;
   flex-direction: row;
   order: 2;
   border-top: 1px solid var(--border);
   border-right: none;
 }
 
-.is-compact .slide-list-header {
+.is-phone .slide-list-header {
   display: none;
 }
 
-.is-compact .slide-list-items {
+.is-phone .slide-list-items {
   display: flex;
   flex-direction: row;
   gap: 6px;
   padding: 6px 8px;
   overflow-x: auto;
   overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
-.is-compact .slide-list-item {
+.is-phone .slide-list-item {
   flex-direction: column;
   flex-shrink: 0;
   gap: 2px;
   padding: 2px;
 }
 
-.is-compact .slide-number {
+.is-phone .slide-number {
   width: auto;
   padding: 0;
   text-align: center;
 }
 
-.is-compact .slide-item-actions {
+/* 帯では重なって押しにくいので、複製／削除はリボンと書式設定に任せる */
+.is-phone .slide-item-actions {
   display: none !important;
 }
+
+/* --- タブレット: スライド一覧は縦のまま細くする */
+
+.is-compact:not(.is-phone) .slide-list {
+  width: 186px;
+}
+
+/* --- スライドの追加タイル（コンパクト配置のときだけ出す） */
+
+.slide-list-add {
+  display: flex;
+  flex-shrink: 0;
+  align-items: stretch;
+  padding: 2px;
+}
+
+.slide-list-add button {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 4px;
+  color: var(--pp-dark);
+  background: #fff;
+  font-size: 12px;
+}
+
+.is-phone .slide-list-add button {
+  flex-direction: column;
+  gap: 2px;
+  width: 64px;
+  height: 100%;
+}
+
+/* --- キャンバスとノート */
 
 .is-compact .canvas-area {
   padding: 12px;
 }
 
-.is-compact .notes-pane {
-  height: 88px;
+.is-phone .canvas-area {
+  padding: 8px;
 }
+
+.is-compact .notes-pane {
+  height: 92px;
+}
+
+/* --- 書式設定は下から出るシートにする */
 
 .is-compact .task-pane {
   position: fixed;
@@ -1559,11 +1886,23 @@ input[type="color"] {
   left: 0;
   z-index: 70;
   width: auto;
-  max-height: 70vh;
+  max-height: 72dvh;
+  padding-bottom: env(safe-area-inset-bottom);
   border-top: 1px solid var(--border);
   border-left: none;
   border-radius: 12px 12px 0 0;
   box-shadow: 0 -8px 30px rgb(0 0 0 / 25%);
+}
+
+.is-compact .pane-header {
+  min-height: 48px;
+}
+
+.is-compact .field input,
+.is-compact .field select,
+.is-compact .button-row button,
+.is-compact .color-row button {
+  min-height: 40px;
 }
 
 .sheet-backdrop {
@@ -1573,14 +1912,90 @@ input[type="color"] {
   background: rgb(0 0 0 / 25%);
 }
 
+/* --- ステータスバー */
+
 .is-compact .status-bar {
-  height: 30px;
+  height: 32px;
 }
 
 .is-compact .status-item.is-optional,
 .is-compact .zoom-control input[type="range"] {
   display: none;
 }
+
+.is-compact .status-button {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* 画面の下端（ホームバーや切り欠き）を避ける */
+.is-phone > .status-bar {
+  height: auto;
+  min-height: 38px;
+  padding-right: calc(6px + env(safe-area-inset-right));
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: calc(6px + env(safe-area-inset-left));
+}
+
+.is-phone > .ribbon .ribbon-body {
+  padding-right: calc(6px + env(safe-area-inset-right));
+  padding-left: calc(6px + env(safe-area-inset-left));
+}
+
+.is-phone .status-button {
+  height: 32px;
+}
+
+/* 幅が足りないので、ズームは倍率表示と「画面に合わせる」だけにする */
+.is-phone .zoom-control > .status-button:not(:last-child) {
+  display: none;
+}
+
+/* --- 背の低い画面（スマホの横持ちなど）では各バーをさらに薄くする */
+
+@media (max-height: 520px) {
+  .is-compact .title-bar {
+    height: 36px;
+  }
+
+  .is-compact .ribbon-tabs {
+    height: 30px;
+  }
+
+  .is-compact .ribbon-tab {
+    height: 26px;
+  }
+
+  .is-compact .ribbon-collapse {
+    height: 26px;
+  }
+
+  .is-compact .ribbon-body {
+    height: 48px;
+  }
+
+  .is-compact .ribbon-big,
+  .is-compact .ribbon-split .ribbon-big,
+  .is-compact .ribbon-split-arrow {
+    height: 40px;
+  }
+
+  .is-compact .notes-pane {
+    height: 68px;
+  }
+
+  .is-phone .slide-list {
+    height: 74px;
+  }
+
+  .is-compact .dropdown,
+  .is-compact .file-menu,
+  .is-compact .task-pane {
+    max-height: 86dvh;
+  }
+}
+
 
 /* ------------------------------------------------------------ 書き出し専用ルート */
 
