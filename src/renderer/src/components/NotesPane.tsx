@@ -1,9 +1,10 @@
 /** 下部のノート欄。発表者モードで表示される文章。ステータスバーの「ノート」で開閉する。 */
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
+import { activeSlides } from '@shared/deck'
 
 export function NotesPane() {
-  const notes = useDeckStore((state) => state.deck.slides[state.slideIndex]?.notes ?? '')
+  const notes = useDeckStore((state) => activeSlides(state.deck)[state.slideIndex]?.notes ?? '')
   const setNotes = useDeckStore((state) => state.setNotes)
   const open = useUiStore((state) => state.notesOpen)
 

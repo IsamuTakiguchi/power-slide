@@ -4,15 +4,17 @@
  */
 import { platform } from '../platform'
 import {
+  activeSheetOf,
   createImageElement,
   createShapeElement,
   createTextElement,
+  type Deck,
   type ShapeKind,
 } from '@shared/deck'
 import { createStarterDeck, centerPosition } from '@shared/layouts'
 import { resolveTheme } from '@shared/themes'
 import { useDeckStore } from '../store/deckStore'
-import { flashStatus, useUiStore } from '../store/uiStore'
+import { flashStatus, useUiStore, type ExportScope } from '../store/uiStore'
 
 function store() {
   return useDeckStore.getState()
@@ -100,6 +102,58 @@ export async function saveDeckAs(): Promise<boolean> {
   return false
 }
 
+// ---------------------------------------------------------------- 自動保存
+
+/**
+ * 自動保存の書き先。ファイルに上書きできるならファイル、Web 版でそれができない
+ * （保存先が無い・iPhone の Safari など）ならブラウザ内、デスクトップ版で保存先が無ければ null。
+ */
+export type AutoSaveTarget = 'file' | 'browser' | null
+
+export function autoSaveTarget(filePath: string | null): AutoSaveTarget {
+  const { capabilities } = platform
+  if (filePath && (capabilities.nativeFiles || capabilities.fileAutosave)) return 'file'
+  return capabilities.draftAutosave ? 'browser' : null
+}
+
+/**
+ * タイトルバーの「自動保存」スイッチ。Office と同じく、保存先が決まっていないまま
+ * オンにしようとしたら先に保存先を選んでもらい、取り消したらオフのままにする。
+ */
+export async function toggleAutoSave(): Promise<void> {
+  const ui = useUiStore.getState()
+  const { filePath } = store()
+  const isOn = ui.autoSaveEnabled && autoSaveTarget(filePath) !== null
+
+  if (isOn) {
+    ui.setAutoSaveEnabled(false)
+    // オフにしたら、ブラウザ内の下書きも残さない（次に開いたとき古い内容が戻ってこないように）
+    await platform.deck.clearDraft?.()
+    flashStatus('自動保存をオフにしました。保存は「保存」（Ctrl+S）で行ってください', 4000)
+    return
+  }
+
+  // 保存先を選べる環境で、まだ決まっていなければ先に選んでもらう
+  const canPickFile = platform.capabilities.nativeFiles || platform.capabilities.fileAutosave
+  if (!filePath && canPickFile) {
+    const saved = await saveDeckAs()
+    if (!saved) {
+      flashStatus('保存先が決まらなかったため、自動保存はオフのままです', 4000)
+      return
+    }
+  }
+
+  ui.setAutoSaveEnabled(true)
+  // 外部変更で止めていた場合も再開する（書く前に必ず照合し直すので、黙って上書きはしない）
+  store().setAutoSavePaused(false)
+  flashStatus(
+    autoSaveTarget(store().filePath) === 'file'
+      ? '自動保存をオンにしました。編集するたびにファイルへ保存します'
+      : '自動保存をオンにしました。この端末ではブラウザ内に保存します（ファイルにするには「保存」）',
+    4000,
+  )
+}
+
 type ExportKind = 'pptx' | 'pdf' | 'png'
 
 const EXPORT_LABEL: Record<ExportKind, string> = {
@@ -108,8 +162,18 @@ const EXPORT_LABEL: Record<ExportKind, string> = {
   png: 'PNG 画像',
 }
 
+/**
+ * 書き出す範囲に絞った deck を作る。シートが複数あるファイルから 1 枚だけ出すときは、
+ * ファイル名で見分けがつくよう「タイトル-シート名」にする。
+ */
+export function deckForExport(deck: Deck, scope: ExportScope): Deck {
+  if (scope === 'all' || deck.sheets.length <= 1) return deck
+  const sheet = activeSheetOf(deck)
+  return { ...deck, title: `${deck.title}-${sheet.name}`, activeSheet: 0, sheets: [sheet] }
+}
+
 export async function exportDeck(kind: ExportKind): Promise<void> {
-  const { deck } = store()
+  const deck = deckForExport(store().deck, useUiStore.getState().exportScope)
   flashStatus(`${EXPORT_LABEL[kind]}を書き出しています…`, 60_000)
   const result = await platform.exportDeck[kind](deck)
   if (result.canceled) {
@@ -127,6 +191,35 @@ export async function exportDeck(kind: ExportKind): Promise<void> {
       ? `${EXPORT_LABEL[kind]}を ${count} 枚書き出しました`
       : `${EXPORT_LABEL[kind]}を書き出しました`,
   )
+}
+
+// ---------------------------------------------------------------- シート
+
+/** シートを削除する。Excel と同じく確認してから消す（「元に戻す」でも戻せる）。 */
+export async function deleteSheet(index?: number): Promise<void> {
+  const { deck } = store()
+  if (deck.sheets.length <= 1) {
+    flashStatus('シートが 1 枚のときは削除できません')
+    return
+  }
+  const target = index ?? deck.activeSheet
+  const sheet = deck.sheets[target]
+  if (!sheet) return
+  const ok = await platform.dialog.confirm({
+    message: `シート「${sheet.name}」を削除しますか？`,
+    detail: `このシートのスライド ${sheet.slides.length} 枚も一緒に削除されます。削除したあとでも「元に戻す」で戻せます。`,
+    okLabel: '削除',
+  })
+  if (!ok) return
+  if (store().deleteSheet(target)) flashStatus(`シート「${sheet.name}」を削除しました`)
+}
+
+/** 隣のシートへ移る（Ctrl+PageUp / Ctrl+PageDown）。端では止まる。 */
+export function selectAdjacentSheet(step: -1 | 1): void {
+  const { deck, selectSheet } = store()
+  const target = deck.activeSheet + step
+  if (target < 0 || target >= deck.sheets.length) return
+  selectSheet(target)
 }
 
 // ---------------------------------------------------------------- 挿入

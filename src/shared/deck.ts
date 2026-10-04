@@ -5,8 +5,13 @@
  */
 import { newId } from './id'
 
-/** ファイル形式のバージョン。破壊的変更のたびに上げる。 */
-export const SCHEMA_VERSION = 1
+/**
+ * ファイル形式のバージョン。破壊的変更のたびに上げる。
+ *
+ * - 1: スライドの配列を直下に持つ（1 ファイル 1 シート）
+ * - 2: Excel のように複数のシートを持てる（`sheets`）。1 の形式も読み込める
+ */
+export const SCHEMA_VERSION = 2
 
 export const FILE_EXTENSION = 'pslide'
 
@@ -121,14 +126,34 @@ export interface Slide {
   notes: string
 }
 
+/**
+ * シート。Excel のシートと同じく 1 ファイルに複数持てて、画面下の見出しで切り替える。
+ * それぞれが独立したスライドの並びを持つ（例:「本編」「付録」、v1.0 と v1.1 など）。
+ */
+export interface Sheet {
+  id: string
+  /** シート見出しに出す名前。ファイル内で重複させない。 */
+  name: string
+  /** シート見出しの色（Excel の「シート見出しの色」）。未指定なら色なし。 */
+  color?: string
+  /** 必ず 1 枚以上。 */
+  slides: Slide[]
+}
+
 export interface Deck {
   schemaVersion: number
   title: string
   themeId: string
-  /** 既定テーマを編集した場合のみ持つ。 */
+  /** 既定テーマを編集した場合のみ持つ。テーマはファイル全体（全シート）で共通。 */
   theme?: Theme
-  slides: Slide[]
+  /** 開いているシートの番号。保存しておき、次に開いたときも同じシートから始める。 */
+  activeSheet: number
+  /** 必ず 1 枚以上。 */
+  sheets: Sheet[]
 }
+
+/** シート名の長さの上限（Excel と同じ 31 文字）。 */
+export const MAX_SHEET_NAME_LENGTH = 31
 
 // ---------------------------------------------------------------- ファクトリ
 
@@ -188,6 +213,53 @@ export function createSlide(partial: Partial<Slide> = {}): Slide {
     elements: [],
     notes: '',
     ...partial,
+  }
+}
+
+export function createSheet(name: string, slides: Slide[] = [createSlide()]): Sheet {
+  return { id: newId('sh'), name, slides }
+}
+
+// ---------------------------------------------------------------- シートの参照
+
+/** 開いているシート。番号が範囲外でも必ずどれかを返す。 */
+export function activeSheetOf(deck: Deck): Sheet {
+  return deck.sheets[clampSheetIndex(deck, deck.activeSheet)] ?? deck.sheets[0]
+}
+
+/** 開いているシートのスライド。編集・発表はこれを対象にする。 */
+export function activeSlides(deck: Deck): Slide[] {
+  return activeSheetOf(deck).slides
+}
+
+/** 全シートのスライドを、シートの並び順に連結したもの（書き出し用）。 */
+export function allSlides(deck: Deck): Slide[] {
+  return deck.sheets.flatMap((sheet) => sheet.slides)
+}
+
+export function clampSheetIndex(deck: Deck, index: number): number {
+  return Math.min(Math.max(0, Math.trunc(index) || 0), Math.max(0, deck.sheets.length - 1))
+}
+
+/** まだ使われていない「シートN」という名前を返す（Excel の新しいシートと同じ付け方）。 */
+export function nextSheetName(sheets: Pick<Sheet, 'name'>[]): string {
+  const used = new Set(sheets.map((sheet) => sheet.name))
+  for (let n = sheets.length + 1; ; n += 1) {
+    const name = `シート${n}`
+    if (!used.has(name)) return name
+  }
+}
+
+/**
+ * 既存の名前と重ならないようにする。重なるときは Excel の複製と同じく「名前 (2)」の形にする。
+ */
+export function uniqueSheetName(base: string, sheets: Pick<Sheet, 'name'>[]): string {
+  const used = new Set(sheets.map((sheet) => sheet.name))
+  if (!used.has(base)) return base
+  const stem = base.replace(/ \(\d+\)$/, '')
+  for (let n = 2; ; n += 1) {
+    const name = `${stem} (${n})`
+    if (!used.has(name)) return name
   }
 }
 

@@ -8,6 +8,7 @@ import type { PowerSlideApi } from '@shared/api'
 import {
   IPC,
   type AutoSaveResult,
+  type ConfirmRequest,
   type ConflictResult,
   type ExportResult,
   type MenuCommand,
@@ -18,7 +19,7 @@ import {
 } from '@shared/ipc'
 
 const api: PowerSlideApi = {
-  capabilities: { exportPng: true, draftAutosave: false, nativeFiles: true },
+  capabilities: { exportPng: true, draftAutosave: false, nativeFiles: true, fileAutosave: true },
   deck: {
     open: (): Promise<OpenDeckResult> => ipcRenderer.invoke(IPC.deckOpen),
     openPath: (filePath: string): Promise<OpenDeckResult> =>
@@ -60,6 +61,8 @@ const api: PowerSlideApi = {
       message: string
       detail?: string
     }): Promise<void> => ipcRenderer.invoke(IPC.showMessage, payload),
+    confirm: (request: ConfirmRequest): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.showConfirm, request),
   },
   /** 起動中に OS からファイルを開くよう求められたときに呼ばれる。 */
   onOpenRequested: (handler: (filePath: string) => void): (() => void) => {

@@ -10,6 +10,7 @@ import { DEFAULT_LAYOUT_ID } from '@shared/layouts'
 import { resolveTheme } from '@shared/themes'
 import { Icon } from './Icon'
 import { SlideView } from './SlideView'
+import { activeSlides } from '@shared/deck'
 
 /**
  * サムネイルの表示幅（px）。タブレットでは一覧を細く、スマホでは下の帯に横に並べるので
@@ -20,7 +21,7 @@ const THUMB_WIDTH = { desktop: 196, tablet: 150, phone: 104 }
 export function SlideList() {
   const layout = useUiStore((state) => state.layout)
   const compact = useUiStore((state) => state.compact)
-  const slides = useDeckStore((state) => state.deck.slides)
+  const slides = useDeckStore((state) => activeSlides(state.deck))
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
   const slideIndex = useDeckStore((state) => state.slideIndex)

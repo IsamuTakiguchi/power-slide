@@ -1,5 +1,5 @@
 /**
- * 自動保存。
+ * 自動保存。タイトルバーの「自動保存」スイッチがオンのときだけ動く。
  *
  * 手で直したファイルを黙って潰さないことを最優先にしている:
  * ・保存先が未確定（新規デッキ）のときはファイルには書かない
@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef } from 'react'
 import { useDeckStore } from '../store/deckStore'
-import { flashStatus } from '../store/uiStore'
+import { flashStatus, useUiStore } from '../store/uiStore'
 import { platform } from '../platform'
 
 /** 変更が止まってから保存するまでの待ち時間。 */
@@ -21,12 +21,13 @@ export function useAutoSave(): void {
   const dirty = useDeckStore((state) => state.dirty)
   const autoSavePaused = useDeckStore((state) => state.autoSavePaused)
   const inTransaction = useDeckStore((state) => state.inTransaction)
+  const enabled = useUiStore((state) => state.autoSaveEnabled)
 
   /** 同時に 2 回走らせないための錠。 */
   const savingRef = useRef(false)
 
   useEffect(() => {
-    if (!dirty || autoSavePaused || inTransaction) return
+    if (!enabled || !dirty || autoSavePaused || inTransaction) return
     // 保存先が無いときは、下書きを残せるプラットフォームだけ動かす
     if (!filePath && !platform.capabilities.draftAutosave) return
 
@@ -96,5 +97,5 @@ export function useAutoSave(): void {
     }, DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [deck, filePath, dirty, autoSavePaused, inTransaction])
+  }, [enabled, deck, filePath, dirty, autoSavePaused, inTransaction])
 }

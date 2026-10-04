@@ -4,11 +4,12 @@ import { insertImage, insertTextBox } from '../../lib/commands'
 import { FontGroup, ParagraphGroup } from './FontGroup'
 import { BigButton, RibbonGroup, SmallButton, SmallStack } from './RibbonParts'
 import { NewSlideButton, ShapesButton } from './SharedButtons'
+import { activeSlides } from '@shared/deck'
 
 export function HomeTab() {
   const duplicateSlide = useDeckStore((state) => state.duplicateSlide)
   const deleteSlide = useDeckStore((state) => state.deleteSlide)
-  const slideCount = useDeckStore((state) => state.deck.slides.length)
+  const slideCount = useDeckStore((state) => activeSlides(state.deck).length)
   const hasSelection = useDeckStore((state) => state.selectedIds.length > 0)
   const reorderSelected = useDeckStore((state) => state.reorderSelected)
   const deleteSelected = useDeckStore((state) => state.deleteSelected)

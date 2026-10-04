@@ -8,6 +8,7 @@
  * という手順で使う。
  */
 import { useEffect, useState } from 'react'
+import { allSlides } from '@shared/deck'
 import type { RenderRequest } from '@shared/ipc'
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
 import { resolveTheme } from '@shared/themes'
@@ -71,9 +72,11 @@ export function RenderRoute() {
   if (!request) return <div className="render-root" />
 
   const theme = resolveTheme(request.deck.themeId, request.deck.theme)
+  // 渡された deck の全シートを、シートの並び順に通しで描く（どのシートを出すかは呼び出し側で決める）
+  const slides = allSlides(request.deck)
 
   if (request.mode === 'single') {
-    const slide = request.deck.slides[request.slideIndex ?? 0]
+    const slide = slides[request.slideIndex ?? 0]
     if (!slide) return <div className="render-root" />
     // ウィンドウサイズいっぱいに引き伸ばして 1 枚だけ描く（PNG 書き出し）
     const scale = Math.min(window.innerWidth / SLIDE_WIDTH, window.innerHeight / SLIDE_HEIGHT)
@@ -87,11 +90,11 @@ export function RenderRoute() {
   // PDF 用: 1 スライド = 1 ページで縦に並べる
   return (
     <div className="render-root is-print">
-      {request.deck.slides.map((slide, index) => (
+      {slides.map((slide, index) => (
         <div
           key={slide.id}
           className="print-page"
-          style={{ breakAfter: index < request.deck.slides.length - 1 ? 'page' : 'auto' }}
+          style={{ breakAfter: index < slides.length - 1 ? 'page' : 'auto' }}
         >
           <SlideView slide={slide} theme={theme} scale={1} />
         </div>

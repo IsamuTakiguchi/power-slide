@@ -11,6 +11,7 @@ import { resolveTheme } from '@shared/themes'
 import { useDeckStore } from '../store/deckStore'
 import { stopPresenting } from '../lib/commands'
 import { SlideView } from './SlideView'
+import { activeSlides } from '@shared/deck'
 
 function formatElapsed(seconds: number): string {
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0')
@@ -19,7 +20,7 @@ function formatElapsed(seconds: number): string {
 }
 
 export function Presenter() {
-  const slides = useDeckStore((state) => state.deck.slides)
+  const slides = useDeckStore((state) => activeSlides(state.deck))
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
   const startIndex = useDeckStore((state) => state.slideIndex)

@@ -5,7 +5,8 @@
 import { useEffect } from 'react'
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
-import { saveDeck } from '../lib/commands'
+import { saveDeck, selectAdjacentSheet } from '../lib/commands'
+import { activeSlides } from '@shared/deck'
 
 /** Shift 併用時の移動量（論理 px）。 */
 const NUDGE_LARGE = 10
@@ -26,6 +27,18 @@ export function useEditorShortcuts(): void {
 
       const meta = event.metaKey || event.ctrlKey
       const step = event.shiftKey ? NUDGE_LARGE : 1
+
+      // シートの操作は Excel と同じキー
+      if (meta && (event.key === 'PageUp' || event.key === 'PageDown')) {
+        event.preventDefault()
+        selectAdjacentSheet(event.key === 'PageUp' ? -1 : 1)
+        return
+      }
+      if (event.shiftKey && event.key === 'F11') {
+        event.preventDefault()
+        store.addSheet()
+        return
+      }
 
       if (meta) {
         switch (event.key.toLowerCase()) {
@@ -89,7 +102,7 @@ export function useEditorShortcuts(): void {
           // 選択中のテキスト要素を編集開始
           const [id] = store.selectedIds
           if (!id) return
-          const slide = store.deck.slides[store.slideIndex]
+          const slide = activeSlides(store.deck)[store.slideIndex]
           const element = slide?.elements.find((item) => item.id === id)
           if (element?.type === 'text') {
             event.preventDefault()

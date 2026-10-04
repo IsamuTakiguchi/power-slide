@@ -13,6 +13,7 @@ import {
 } from '../../lib/textFormat'
 import { Icon } from '../Icon'
 import { RibbonGroup, SmallButton } from './RibbonParts'
+import { activeSlides } from '@shared/deck'
 
 const FONT_OPTIONS = [
   { label: 'テーマの既定', value: '' },
@@ -22,7 +23,7 @@ const FONT_OPTIONS = [
 /** 選択中の要素から、文字書式の対象になる最初の要素を取り出す。 */
 function useTextTarget() {
   return useDeckStore((state) => {
-    const slide = state.deck.slides[state.slideIndex]
+    const slide = activeSlides(state.deck)[state.slideIndex]
     if (!slide) return null
     return findTextTarget(slide.elements.filter((element) => state.selectedIds.includes(element.id)))
   })

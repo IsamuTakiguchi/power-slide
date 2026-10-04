@@ -9,6 +9,7 @@ import { FONT_CHOICES } from '@shared/fonts'
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
 import { Icon } from './Icon'
+import { activeSlides } from '@shared/deck'
 
 const FONT_OPTIONS: { label: string; value: string }[] = [
   { label: 'テーマの既定', value: '' },
@@ -347,7 +348,7 @@ function ElementPanel({ element, palette }: { element: SlideElement; palette: st
 export function Inspector() {
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
-  const slide = useDeckStore((state) => state.deck.slides[state.slideIndex])
+  const slide = useDeckStore((state) => activeSlides(state.deck)[state.slideIndex])
   const selectedIds = useDeckStore((state) => state.selectedIds)
   const setSlideBackground = useDeckStore((state) => state.setSlideBackground)
   const toggleInspector = useUiStore((state) => state.toggleInspector)

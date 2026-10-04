@@ -4,7 +4,10 @@
  */
 import { platform } from '../../platform'
 import { useEffect, useState } from 'react'
+import { activeSheetOf } from '@shared/deck'
 import type { RecentFile } from '@shared/ipc'
+import { useDeckStore } from '../../store/deckStore'
+import { useUiStore } from '../../store/uiStore'
 import { exportDeck, newDeck, openDeck, openDeckPath, saveDeck, saveDeckAs } from '../../lib/commands'
 import { Icon, type IconName } from '../Icon'
 
@@ -35,6 +38,38 @@ function MenuItem({
   )
 }
 
+/** シートが複数あるときだけ出す、書き出す範囲の切り替え。 */
+function ExportScopePicker() {
+  const sheetCount = useDeckStore((state) => state.deck.sheets.length)
+  const sheetName = useDeckStore((state) => activeSheetOf(state.deck).name)
+  const scope = useUiStore((state) => state.exportScope)
+  const setScope = useUiStore((state) => state.setExportScope)
+  if (sheetCount <= 1) return null
+
+  return (
+    <div className="export-scope" role="radiogroup" aria-label="書き出す範囲">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={scope === 'sheet'}
+        className={scope === 'sheet' ? 'is-active' : ''}
+        onClick={() => setScope('sheet')}
+      >
+        このシート（{sheetName}）
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={scope === 'all'}
+        className={scope === 'all' ? 'is-active' : ''}
+        onClick={() => setScope('all')}
+      >
+        すべてのシート（{sheetCount}）
+      </button>
+    </div>
+  )
+}
+
 export function FileMenu({ close }: { close: () => void }) {
   const [files, setFiles] = useState<RecentFile[] | null>(null)
 
@@ -56,6 +91,7 @@ export function FileMenu({ close }: { close: () => void }) {
         <MenuItem icon="save" label="保存" hint="Ctrl+S" onClick={run(saveDeck)} />
         <MenuItem icon="save" label="名前を付けて保存" hint="Ctrl+Shift+S" onClick={run(saveDeckAs)} />
         <div className="file-menu-section">エクスポート</div>
+        <ExportScopePicker />
         <MenuItem
           icon="export"
           label="PowerPoint (.pptx)"

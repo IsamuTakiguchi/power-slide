@@ -9,6 +9,7 @@ import { app } from 'electron'
 import {
   IPC,
   type AutoSaveResult,
+  type ConfirmRequest,
   type ConflictResult,
   type ExportResult,
   type OpenDeckResult,
@@ -363,6 +364,23 @@ export function registerIpcHandlers(getWindow: WindowProvider): void {
       else await dialog.showMessageBox(options)
     },
   )
+
+  ipcMain.handle(IPC.showConfirm, async (_event, request: ConfirmRequest): Promise<boolean> => {
+    const window = getWindow()
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      buttons: [request.okLabel, 'キャンセル'],
+      defaultId: 1,
+      cancelId: 1,
+      message: request.message,
+      detail: request.detail,
+      noLink: true,
+    }
+    const { response } = window
+      ? await dialog.showMessageBox(window, options)
+      : await dialog.showMessageBox(options)
+    return response === 0
+  })
 }
 
 function mimeFromExtension(extension: string): string {

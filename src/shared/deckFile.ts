@@ -3,12 +3,15 @@
  * Electron（main）と Web 版（ブラウザ）の両方から使うので、Node の API には依存しない。
  */
 import {
+  MAX_SHEET_NAME_LENGTH,
   SCHEMA_VERSION,
+  uniqueSheetName,
   type Background,
   type Deck,
   type ImageElement,
   type ShapeElement,
   type ShapeKind,
+  type Sheet,
   type Slide,
   type SlideElement,
   type TextAlign,
@@ -24,9 +27,19 @@ export interface ReadDeckResult {
   schemaWarning?: string
 }
 
-/** `.pslide` に書く JSON 文字列。整形して、手で直せる形にする。 */
+/**
+ * `.pslide` に書く JSON 文字列。整形して、手で直せる形にする。
+ * 項目の順番も固定し、設定を先頭・中身（sheets）を最後に置いて読みやすくする。
+ */
 export function serializeDeck(deck: Deck): string {
-  const payload: Deck = { ...deck, schemaVersion: SCHEMA_VERSION }
+  const payload: Deck = {
+    schemaVersion: SCHEMA_VERSION,
+    title: deck.title,
+    themeId: deck.themeId,
+    ...(deck.theme ? { theme: deck.theme } : {}),
+    activeSheet: deck.activeSheet,
+    sheets: deck.sheets,
+  }
   return `${JSON.stringify(payload, null, 2)}\n`
 }
 
@@ -46,8 +59,6 @@ export function parseDeck(text: string): ReadDeckResult {
  */
 export function normalizeDeck(input: unknown): ReadDeckResult {
   if (!isRecord(input)) throw new Error('スライドデータの形式が正しくありません。')
-  const slidesRaw = input.slides
-  if (!Array.isArray(slidesRaw)) throw new Error('スライドの配列が見つかりませんでした。')
 
   const version = num(input.schemaVersion, SCHEMA_VERSION)
   const schemaWarning =
@@ -55,18 +66,58 @@ export function normalizeDeck(input: unknown): ReadDeckResult {
       ? `このファイルは新しい形式（バージョン ${version}）で保存されています。一部の設定が失われる可能性があります。`
       : undefined
 
-  const slides = slidesRaw.map(normalizeSlide).filter((slide): slide is Slide => slide !== null)
-  if (slides.length === 0) throw new Error('読み込めるスライドがありませんでした。')
+  let sheets: Sheet[]
+  if (Array.isArray(input.sheets)) {
+    sheets = normalizeSheets(input.sheets)
+  } else if (Array.isArray(input.slides)) {
+    // 形式 1（シートが無い頃のファイル）は、全体を 1 枚のシートとして読む
+    const slides = normalizeSlides(input.slides)
+    sheets = slides.length > 0 ? [{ id: 'sh_restored_0', name: 'シート1', slides }] : []
+  } else {
+    throw new Error('スライドの配列が見つかりませんでした。')
+  }
+  if (sheets.length === 0) throw new Error('読み込めるスライドがありませんでした。')
 
   const deck: Deck = {
     schemaVersion: SCHEMA_VERSION,
     title: str(input.title, '無題のプレゼンテーション'),
     themeId: str(input.themeId, DEFAULT_THEME_ID),
-    slides,
+    activeSheet: Math.min(Math.max(0, Math.trunc(num(input.activeSheet, 0))), sheets.length - 1),
+    sheets,
   }
   const theme = normalizeTheme(input.theme)
   if (theme) deck.theme = theme
   return { deck, schemaWarning }
+}
+
+/**
+ * シートの配列を整える。手で直したファイルでも開けるよう、名前や ID の重複・欠けは
+ * 直して読み込み、スライドが 1 枚も読めないシートだけを外す。
+ */
+function normalizeSheets(input: unknown[]): Sheet[] {
+  const sheets: Sheet[] = []
+  const usedIds = new Set<string>()
+  input.forEach((raw, index) => {
+    if (!isRecord(raw) || !Array.isArray(raw.slides)) return
+    const slides = normalizeSlides(raw.slides)
+    if (slides.length === 0) return
+
+    let id = str(raw.id, '')
+    if (!id || usedIds.has(id)) id = `sh_restored_${index}`
+    usedIds.add(id)
+
+    const named = str(raw.name, '').trim().slice(0, MAX_SHEET_NAME_LENGTH)
+    const name = uniqueSheetName(named || `シート${sheets.length + 1}`, sheets)
+    const sheet: Sheet = { id, name, slides }
+    const color = optionalStr(raw.color)
+    if (color) sheet.color = color
+    sheets.push(sheet)
+  })
+  return sheets
+}
+
+function normalizeSlides(input: unknown[]): Slide[] {
+  return input.map(normalizeSlide).filter((slide): slide is Slide => slide !== null)
 }
 
 function normalizeSlide(input: unknown, index: number): Slide | null {

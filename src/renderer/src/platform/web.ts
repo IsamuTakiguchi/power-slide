@@ -24,7 +24,7 @@ import type {
 } from '@shared/ipc'
 import { normalizeDeck, parseDeck, serializeDeck } from '@shared/deckFile'
 import { buildPptx } from '@shared/pptx'
-import { idbGet, idbSet } from './idb'
+import { idbDelete, idbGet, idbSet } from './idb'
 
 const DRAFT_KEY = 'draft'
 const RECENT_KEY = 'recent'
@@ -245,7 +245,13 @@ window.addEventListener('beforeunload', (event) => {
 
 export function createWebPlatform(): PowerSlideApi {
   return {
-    capabilities: { exportPng: false, draftAutosave: true, nativeFiles: false },
+    capabilities: {
+      exportPng: false,
+      draftAutosave: true,
+      nativeFiles: false,
+      // 保存先を選ばせてそのまま上書きし続けられるのは File System Access API があるときだけ
+      fileAutosave: typeof pickerWindow().showSaveFilePicker === 'function',
+    },
 
     deck: {
       async open(): Promise<OpenDeckResult> {
@@ -371,6 +377,10 @@ export function createWebPlatform(): PowerSlideApi {
 
       takePendingOpen: async () => null,
 
+      async clearDraft(): Promise<void> {
+        await idbDelete(DRAFT_KEY).catch(() => undefined)
+      },
+
       async restoreDraft(): Promise<Deck | null> {
         const draft = await idbGet<Draft>(DRAFT_KEY).catch(() => undefined)
         if (!draft || draft.clean) return null
@@ -452,6 +462,9 @@ export function createWebPlatform(): PowerSlideApi {
     dialog: {
       async message({ message, detail }) {
         window.alert(detail ? `${message}\n\n${detail}` : message)
+      },
+      async confirm({ message, detail }) {
+        return window.confirm(detail ? `${message}\n\n${detail}` : message)
       },
     },
 

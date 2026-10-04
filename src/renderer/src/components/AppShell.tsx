@@ -22,6 +22,7 @@ import { SlideList } from './SlideList'
 import { SlideCanvas } from './SlideCanvas'
 import { Inspector } from './Inspector'
 import { NotesPane } from './NotesPane'
+import { SheetTabs } from './SheetTabs'
 import { StatusBar } from './StatusBar'
 import { Presenter } from './Presenter'
 
@@ -122,6 +123,7 @@ export function AppShell() {
         )}
         {inspectorOpen && <Inspector />}
       </div>
+      <SheetTabs />
       <StatusBar />
       {status && <div className="status-toast">{status}</div>}
       {presenting && <Presenter />}

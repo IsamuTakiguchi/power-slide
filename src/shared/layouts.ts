@@ -2,7 +2,15 @@
  * レイアウトテンプレート。選んだレイアウトから要素入りのスライドを生成する。
  * 生成後の要素は普通の要素なので、自由に動かしても構わない。
  */
-import { createShapeElement, createSlide, createTextElement, SCHEMA_VERSION, type Deck, type Slide } from './deck'
+import {
+  createShapeElement,
+  createSheet,
+  createSlide,
+  createTextElement,
+  SCHEMA_VERSION,
+  type Deck,
+  type Slide,
+} from './deck'
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from './geometry'
 import { DEFAULT_THEME_ID } from './themes'
 
@@ -205,13 +213,14 @@ export function buildSlideFromLayout(layoutId: string): Slide {
   return layout.build()
 }
 
-/** 新規デッキの初期状態（タイトルスライド 1 枚）。 */
+/** 新規デッキの初期状態（「シート1」にタイトルスライド 1 枚）。 */
 export function createStarterDeck(): Deck {
   return {
     schemaVersion: SCHEMA_VERSION,
     title: '無題のプレゼンテーション',
     themeId: DEFAULT_THEME_ID,
-    slides: [buildSlideFromLayout('title')],
+    activeSheet: 0,
+    sheets: [createSheet('シート1', [buildSlideFromLayout('title')])],
   }
 }
 

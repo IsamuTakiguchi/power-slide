@@ -13,6 +13,28 @@ export type RibbonTab = 'home' | 'insert' | 'design' | 'slideshow'
  */
 export type LayoutKind = 'desktop' | 'tablet' | 'phone'
 
+/** 自動保存のオン／オフを覚えておく場所（端末ごとの設定）。 */
+const AUTOSAVE_PREF_KEY = 'power-slide:autosave'
+
+function loadAutoSavePref(): boolean {
+  try {
+    return localStorage.getItem(AUTOSAVE_PREF_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+function storeAutoSavePref(enabled: boolean): void {
+  try {
+    localStorage.setItem(AUTOSAVE_PREF_KEY, enabled ? 'on' : 'off')
+  } catch {
+    // 保存できない環境（プライベートブラウズなど）では今回の起動中だけ有効
+  }
+}
+
+/** 書き出す範囲。Excel の PDF 出力と同じく、既定は開いているシートだけ。 */
+export type ExportScope = 'sheet' | 'all'
+
 export interface UiStore {
   presenting: boolean
   /** 画面右下に短時間出す通知。 */
@@ -38,6 +60,13 @@ export interface UiStore {
   zoom: number | null
   /** 実際に適用されている倍率（%）。自動のときの値をステータスバーに出すため。 */
   effectiveZoom: number
+  /** 書き出す範囲（シートが 2 枚以上あるときだけ「ファイル」メニューで選べる）。 */
+  exportScope: ExportScope
+  /**
+   * 自動保存のスイッチ（Office の「自動保存」と同じ）。オフのときは自動では何も書かない。
+   * 端末ごとの設定として覚えておく。
+   */
+  autoSaveEnabled: boolean
   setPresenting: (presenting: boolean) => void
   setStatus: (status: string | null) => void
   setRibbonTab: (tab: RibbonTab) => void
@@ -47,6 +76,8 @@ export interface UiStore {
   setLayout: (layout: LayoutKind) => void
   setZoom: (zoom: number | null) => void
   setEffectiveZoom: (zoom: number) => void
+  setExportScope: (scope: ExportScope) => void
+  setAutoSaveEnabled: (enabled: boolean) => void
 }
 
 export const ZOOM_MIN = 25
@@ -63,6 +94,8 @@ export const useUiStore = create<UiStore>((set) => ({
   compact: false,
   zoom: null,
   effectiveZoom: 100,
+  exportScope: 'sheet',
+  autoSaveEnabled: loadAutoSavePref(),
   setPresenting: (presenting) => set({ presenting }),
   setStatus: (status) => set({ status }),
   // 別のタブを選んだときは、たたんでいたリボンを開く
@@ -81,6 +114,11 @@ export const useUiStore = create<UiStore>((set) => ({
   setZoom: (zoom) =>
     set({ zoom: zoom === null ? null : Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom))) }),
   setEffectiveZoom: (effectiveZoom) => set({ effectiveZoom }),
+  setExportScope: (exportScope) => set({ exportScope }),
+  setAutoSaveEnabled: (autoSaveEnabled) => {
+    storeAutoSavePref(autoSaveEnabled)
+    set({ autoSaveEnabled })
+  },
 }))
 
 let statusTimer: ReturnType<typeof setTimeout> | null = null

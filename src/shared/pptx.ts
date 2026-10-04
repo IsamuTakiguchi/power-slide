@@ -187,8 +187,8 @@ function addElement(slide: PptxGenJS.Slide, element: SlideElement, theme: Theme)
   }
 }
 
-function addSlide(pptx: PptxGenJS, source: Slide, theme: Theme): void {
-  const slide = pptx.addSlide()
+function addSlide(pptx: PptxGenJS, source: Slide, theme: Theme, sectionTitle?: string): void {
+  const slide = pptx.addSlide(sectionTitle ? { sectionTitle } : undefined)
   slide.background = { color: hex(source.background?.color, theme.background) }
   for (const element of source.elements) {
     addElement(slide, element, theme)
@@ -198,7 +198,12 @@ function addSlide(pptx: PptxGenJS, source: Slide, theme: Theme): void {
   }
 }
 
-/** Deck からプレゼンテーションを組み立てる。書き出しは呼び出し側で `write()` する。 */
+/**
+ * Deck からプレゼンテーションを組み立てる。書き出しは呼び出し側で `write()` する。
+ *
+ * deck に入っているシートをすべて書き出す（どのシートを出すかは呼び出し側で絞る）。
+ * シートが複数あるときは、シートを PowerPoint の「セクション」にして境目を残す。
+ */
 export function buildPptx(deck: Deck): PptxGenJS {
   const pptx = new PptxGenJS()
   pptx.defineLayout({ name: LAYOUT_NAME, width: SLIDE_WIDTH_IN, height: SLIDE_HEIGHT_IN })
@@ -206,8 +211,12 @@ export function buildPptx(deck: Deck): PptxGenJS {
   pptx.title = deck.title
 
   const theme = resolveTheme(deck.themeId, deck.theme)
-  for (const slide of deck.slides) {
-    addSlide(pptx, slide, theme)
+  const sectioned = deck.sheets.length > 1
+  for (const sheet of deck.sheets) {
+    if (sectioned) pptx.addSection({ title: sheet.name })
+    for (const slide of sheet.slides) {
+      addSlide(pptx, slide, theme, sectioned ? sheet.name : undefined)
+    }
   }
   return pptx
 }

@@ -4,7 +4,7 @@
  */
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { Deck } from '@shared/deck'
+import type { Deck, Sheet } from '@shared/deck'
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
 import { createRenderWindow, renderInWindow } from '../rendererTarget'
 
@@ -18,10 +18,19 @@ import { createRenderWindow, renderInWindow } from '../rendererTarget'
 const OUTPUT_WIDTH = SLIDE_WIDTH
 const OUTPUT_HEIGHT = SLIDE_HEIGHT
 
-function slideFileName(deckTitle: string, index: number, total: number): string {
-  const safeTitle = deckTitle.replace(/[\\/:*?"<>|]/g, '_').trim() || 'slide'
+function safeName(name: string, fallback: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, '_').trim() || fallback
+}
+
+/**
+ * 出力ファイル名。シートが 1 枚なら「タイトル-01.png」、複数なら
+ * 「タイトル-シート名-01.png」とし、番号はシートごとに振り直す。
+ */
+function slideFileName(deckTitle: string, sheet: Sheet | null, index: number, total: number): string {
   const digits = String(total).length
-  return `${safeTitle}-${String(index + 1).padStart(digits, '0')}.png`
+  const number = String(index + 1).padStart(digits, '0')
+  const title = safeName(deckTitle, 'slide')
+  return sheet ? `${title}-${safeName(sheet.name, 'sheet')}-${number}.png` : `${title}-${number}.png`
 }
 
 /** 各スライドを PNG として directory に書き出し、書き出したパスを返す。 */
@@ -29,7 +38,13 @@ export async function exportDeckToPng(deck: Deck, directory: string): Promise<st
   const window = await createRenderWindow(OUTPUT_WIDTH, OUTPUT_HEIGHT)
   const written: string[] = []
   try {
-    for (let index = 0; index < deck.slides.length; index += 1) {
+    // 描画側は全シートのスライドを連結した通し番号で 1 枚を選ぶ
+    const pages = deck.sheets.flatMap((sheet) =>
+      sheet.slides.map((_, indexInSheet) => ({ sheet, indexInSheet })),
+    )
+    const multiSheet = deck.sheets.length > 1
+    for (let index = 0; index < pages.length; index += 1) {
+      const { sheet, indexInSheet } = pages[index]
       await renderInWindow(window, { deck, mode: 'single', slideIndex: index })
       const captured = await window.webContents.capturePage()
       if (captured.isEmpty()) {
@@ -41,7 +56,10 @@ export async function exportDeckToPng(deck: Deck, directory: string): Promise<st
         size.width === OUTPUT_WIDTH && size.height === OUTPUT_HEIGHT
           ? captured
           : captured.resize({ width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT, quality: 'best' })
-      const filePath = join(directory, slideFileName(deck.title, index, deck.slides.length))
+      const filePath = join(
+        directory,
+        slideFileName(deck.title, multiSheet ? sheet : null, indexInSheet, sheet.slides.length),
+      )
       await writeFile(filePath, image.toPNG())
       written.push(filePath)
     }

@@ -3,12 +3,13 @@ import { resolveTheme, THEMES } from '@shared/themes'
 import { useDeckStore } from '../../store/deckStore'
 import { Icon } from '../Icon'
 import { RibbonGroup, SmallButton } from './RibbonParts'
+import { activeSlides } from '@shared/deck'
 
 export function DesignTab() {
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
   const setThemeId = useDeckStore((state) => state.setThemeId)
-  const background = useDeckStore((state) => state.deck.slides[state.slideIndex]?.background?.color)
+  const background = useDeckStore((state) => activeSlides(state.deck)[state.slideIndex]?.background?.color)
   const setSlideBackground = useDeckStore((state) => state.setSlideBackground)
   const theme = resolveTheme(themeId, customTheme)
 

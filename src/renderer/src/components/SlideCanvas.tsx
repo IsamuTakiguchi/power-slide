@@ -14,6 +14,7 @@ import type { SlideElement } from '@shared/deck'
 import { resolveTheme } from '@shared/themes'
 import { SlideView } from './SlideView'
 import { snapMove, type Guide, type Rect } from '../lib/snapping'
+import { activeSlides } from '@shared/deck'
 
 /** 要素の最小サイズ（論理 px）。 */
 const MIN_SIZE = 16
@@ -73,7 +74,7 @@ function resizeRect(origin: Rect, handle: HandleId, dx: number, dy: number): Rec
 }
 
 export function SlideCanvas() {
-  const slide = useDeckStore((state) => state.deck.slides[state.slideIndex])
+  const slide = useDeckStore((state) => activeSlides(state.deck)[state.slideIndex])
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
   const selectedIds = useDeckStore((state) => state.selectedIds)
@@ -197,7 +198,7 @@ export function SlideCanvas() {
       const dx = (event.clientX - drag.startX) / scale
       const dy = (event.clientY - drag.startY) / scale
       const store = useDeckStore.getState()
-      const current = store.deck.slides[store.slideIndex]
+      const current = activeSlides(store.deck)[store.slideIndex]
       if (!current) return
 
       const others: Rect[] = current.elements
@@ -233,7 +234,7 @@ export function SlideCanvas() {
       }
 
       store.editLive((deck) => {
-        const target = deck.slides[store.slideIndex]
+        const target = activeSlides(deck)[store.slideIndex]
         if (!target) return
         target.elements = target.elements.map((element) => {
           const patch = patches.get(element.id)
@@ -255,7 +256,7 @@ export function SlideCanvas() {
       if (drag.kind !== 'move' || drag.moved || !drag.id) return
       if (drag.pointerType === 'mouse' || !drag.wasSelected) return
       const store = useDeckStore.getState()
-      const target = store.deck.slides[store.slideIndex]?.elements.find(
+      const target = activeSlides(store.deck)[store.slideIndex]?.elements.find(
         (element) => element.id === drag.id,
       )
       if (target?.type === 'text') store.setEditing(drag.id)

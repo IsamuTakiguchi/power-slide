@@ -51,8 +51,21 @@ async function stubMessageBox(app: ElectronApplication, response: number): Promi
   }, response)
 }
 
-function readDeckFile(filePath: string): { slides: unknown[]; title: string; themeId: string } {
+interface SavedDeck {
+  schemaVersion: number
+  title: string
+  themeId: string
+  activeSheet: number
+  sheets: { name: string; color?: string; slides: unknown[] }[]
+}
+
+function readDeckFile(filePath: string): SavedDeck {
   return JSON.parse(readFileSync(filePath, 'utf8'))
+}
+
+/** 全シートのスライド枚数の合計。 */
+function totalSlides(deck: SavedDeck): number {
+  return deck.sheets.reduce((sum, sheet) => sum + sheet.slides.length, 0)
 }
 
 /** pptx（zip）の中の 1 エントリを取り出す。 */
@@ -200,17 +213,19 @@ test('保存すると .pslide として書き出され、内容を読み戻せ�
 
   await expect.poll(() => existsSync(deckPath)).toBe(true)
   const saved = readDeckFile(deckPath)
-  expect(saved.slides).toHaveLength(2)
+  expect(saved.schemaVersion).toBe(2)
+  expect(saved.sheets.map((sheet) => sheet.name)).toEqual(['シート1'])
+  expect(saved.sheets[0].slides).toHaveLength(2)
   expect(JSON.stringify(saved)).toContain('自動テストで入力した見出し')
   await expect(page.locator('.save-state')).toContainText('保存済み')
 })
 
 test('編集すると自動保存でファイルが更新される', async () => {
-  const before = readDeckFile(deckPath).slides.length
+  const before = totalSlides(readDeckFile(deckPath))
   await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
 
   // 自動保存は 1.5 秒のデバウンス後に走る
-  await expect.poll(() => readDeckFile(deckPath).slides.length, { timeout: 15_000 }).toBe(before + 1)
+  await expect.poll(() => totalSlides(readDeckFile(deckPath)), { timeout: 15_000 }).toBe(before + 1)
   await expect(page.locator('.save-state')).toContainText('保存済み')
 })
 
@@ -363,6 +378,152 @@ test('最近使ったファイルから選ぶとそのファイルを開ける',
   await expect(page.locator('.save-state')).toContainText('保存済み')
 })
 
+test('シートを足して名前を変え、切り替えると、シートごとに自動保存される', async () => {
+  // 開いているのは直前のテストで読み込んだ deck.pslide
+  await expect(page.locator('.sheet-tab')).toHaveCount(1)
+  await expect(page.getByRole('tab', { name: 'シート1' })).toHaveAttribute('aria-selected', 'true')
+  const firstSheetSlides = await page.locator('.slide-list-item').count()
+
+  await page.getByRole('button', { name: '新しいシート' }).click()
+  await expect(page.getByRole('tab', { name: 'シート2' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.slide-list-item')).toHaveCount(1)
+
+  // Excel と同じく、見出しのダブルクリックで名前を変える
+  await page.getByRole('tab', { name: 'シート2' }).dblclick()
+  await page.getByLabel('シート名').fill('付録')
+  await page.getByLabel('シート名').press('Enter')
+  await expect(page.getByRole('tab', { name: '付録' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(2)
+
+  // 元のシートに戻ると、そのシートのスライドだけが並ぶ
+  await page.getByRole('tab', { name: 'シート1' }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(firstSheetSlides)
+  // Ctrl+PageDown で次のシートへ（Excel と同じキー）
+  await page.keyboard.press('Control+PageDown')
+  await expect(page.getByRole('tab', { name: '付録' })).toHaveAttribute('aria-selected', 'true')
+
+  // 自動保存でファイルにもシートごとに書かれる
+  await expect
+    .poll(() => readDeckFile(deckPath).sheets.map((sheet) => sheet.name), { timeout: 15_000 })
+    .toEqual(['シート1', '付録'])
+  const saved = readDeckFile(deckPath)
+  expect(saved.sheets[0].slides).toHaveLength(firstSheetSlides)
+  expect(saved.sheets[1].slides).toHaveLength(2)
+})
+
+test('自動保存スイッチをオフにすると編集してもファイルに書かず、オンに戻すと保存する', async () => {
+  const autosave = page.getByRole('switch', { name: '自動保存' })
+  await expect(autosave).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('.save-state')).toContainText('保存済み', { timeout: 15_000 })
+
+  await autosave.click()
+  await expect(autosave).toHaveAttribute('aria-checked', 'false')
+  const stamp = statSync(deckPath).mtimeMs
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
+  // 自動保存の待ち時間（1.5 秒）を十分に過ぎても書かれない
+  await page.waitForTimeout(3_000)
+  expect(statSync(deckPath).mtimeMs).toBe(stamp)
+  await expect(page.locator('.save-state')).toContainText('未保存の変更あり')
+
+  // オンに戻すと、たまっていた変更が保存される
+  await autosave.click()
+  await expect(autosave).toHaveAttribute('aria-checked', 'true')
+  await expect.poll(() => statSync(deckPath).mtimeMs, { timeout: 15_000 }).toBeGreaterThan(stamp)
+  await expect(page.locator('.save-state')).toContainText('保存済み')
+})
+
+test('すべてのシートを PowerPoint に書き出すと、シートがセクションになる', async () => {
+  const pptxPath = join(workDir, 'sheets.pptx')
+  await stubSaveDialog(app, pptxPath)
+
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('radio', { name: /すべてのシート/ }).click()
+  await page.getByRole('button', { name: 'PowerPoint (.pptx)' }).click()
+
+  await expect.poll(() => existsSync(pptxPath), { timeout: 60_000 }).toBe(true)
+  const total = totalSlides(readDeckFile(deckPath))
+  const text = readFileSync(pptxPath).toString('latin1')
+  expect(text).toContain(`ppt/slides/slide${total}.xml`)
+  expect(text).not.toContain(`ppt/slides/slide${total + 1}.xml`)
+  const presentation = await readEntry(pptxPath, 'ppt/presentation.xml')
+  expect(presentation).toContain('sectionLst')
+  expect(presentation).toContain('name="シート1"')
+  expect(presentation).toContain('name="付録"')
+})
+
+test('「このシート」を選ぶと、開いているシートだけを書き出す', async () => {
+  const pptxPath = join(workDir, 'one-sheet.pptx')
+  await stubSaveDialog(app, pptxPath)
+
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('radio', { name: /このシート/ }).click()
+  await page.getByRole('button', { name: 'PowerPoint (.pptx)' }).click()
+
+  await expect.poll(() => existsSync(pptxPath), { timeout: 60_000 }).toBe(true)
+  const sheetSlides = await page.locator('.slide-list-item').count()
+  const text = readFileSync(pptxPath).toString('latin1')
+  expect(text).toContain(`ppt/slides/slide${sheetSlides}.xml`)
+  expect(text).not.toContain(`ppt/slides/slide${sheetSlides + 1}.xml`)
+  // シートが 1 枚だけならセクションは付けない
+  expect(await readEntry(pptxPath, 'ppt/presentation.xml')).not.toContain('sectionLst')
+})
+
+test('すべてのシートを PNG にすると、ファイル名にシート名が入る', async () => {
+  const pngDir = join(workDir, 'png-sheets')
+  mkdirSync(pngDir, { recursive: true })
+  await stubOpenDialog(app, pngDir)
+
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('radio', { name: /すべてのシート/ }).click()
+  await page.getByRole('button', { name: 'PNG 画像' }).click()
+
+  const saved = readDeckFile(deckPath)
+  await expect
+    .poll(() => readdirSync(pngDir).filter((name) => name.endsWith('.png')).length, {
+      timeout: 90_000,
+    })
+    .toBe(totalSlides(saved))
+  const names = readdirSync(pngDir)
+  expect(names.filter((name) => name.includes('-付録-'))).toHaveLength(saved.sheets[1].slides.length)
+  expect(names.filter((name) => name.includes('-シート1-'))).toHaveLength(saved.sheets[0].slides.length)
+
+  // 後のテストに影響しないよう、範囲を既定に戻しておく
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('radio', { name: /このシート/ }).click()
+  await page.keyboard.press('Escape')
+})
+
+test('シートは確認してから削除し、「元に戻す」で戻せる', async () => {
+  // 確認ダイアログでは「削除」（index 0）を選ぶ
+  await stubMessageBox(app, 0)
+  await page.getByRole('tab', { name: '付録' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: '削除' }).click()
+  await expect(page.locator('.sheet-tab')).toHaveCount(1)
+
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.sheet-tab')).toHaveCount(2)
+  await expect(page.getByRole('tab', { name: '付録' })).toBeVisible()
+})
+
+test('保存先の無い新規ファイルで自動保存をオンにすると、先に保存先を訊く', async () => {
+  // 未保存の変更があれば破棄して新規にする
+  await stubMessageBox(app, 0)
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('button', { name: /^新規/ }).click()
+
+  // Office と同じく、保存先が無いうちはオフ
+  const autosave = page.getByRole('switch', { name: '自動保存' })
+  await expect(autosave).toHaveAttribute('aria-checked', 'false')
+
+  const newPath = join(workDir, 'autosave-new.pslide')
+  await stubSaveDialog(app, newPath)
+  await autosave.click()
+  await expect(autosave).toHaveAttribute('aria-checked', 'true')
+  await expect.poll(() => existsSync(newPath)).toBe(true)
+  expect(readDeckFile(newPath).sheets).toHaveLength(1)
+})
+
 test('OS からファイルを指定して起動すると、そのファイルを開く', async () => {
   // 関連付け（.pslide のダブルクリック）と同じ経路 = 起動引数でパスを渡す
   const launchDeck = join(workDir, 'launch.pslide')
@@ -401,6 +562,9 @@ test('OS からファイルを指定して起動すると、そのファイル�
       '起動引数から開いたデッキ',
     )
     await expect(launchedPage.locator('.slide-list-item')).toHaveCount(3)
+    // シートの無い頃（形式 1）のファイルは、1 枚目のシートとして開く
+    await expect(launchedPage.locator('.sheet-tab')).toHaveCount(1)
+    await expect(launchedPage.getByRole('tab', { name: 'シート1' })).toBeVisible()
   } finally {
     await launched.evaluate(async ({ dialog }) => {
       dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as never

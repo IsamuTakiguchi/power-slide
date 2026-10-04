@@ -8,6 +8,7 @@
 import type { Deck } from './deck'
 import type {
   AutoSaveResult,
+  ConfirmRequest,
   ConflictResult,
   ExportResult,
   MenuCommand,
@@ -22,6 +23,12 @@ export interface PlatformCapabilities {
   exportPng: boolean
   /** 保存先が未確定でも下書きを自動保存するか（Web 版はブラウザ内に保存する）。 */
   draftAutosave: boolean
+  /**
+   * 同じファイルに繰り返し上書きできるか（＝ファイルへの自動保存ができるか）。
+   * Electron と、File System Access API のあるブラウザ（Chrome・Edge・Android）は true。
+   * iPhone の Safari などは false で、自動保存はブラウザ内の下書きになる。
+   */
+  fileAutosave: boolean
   /** OS のファイルシステムに直接読み書きできるか。 */
   nativeFiles: boolean
 }
@@ -41,6 +48,8 @@ export interface PowerSlideApi {
     takePendingOpen: () => Promise<string | null>
     /** 前回の下書き（保存先のないまま閉じた内容）があれば返す。Web 版のみ。 */
     restoreDraft?: () => Promise<Deck | null>
+    /** ブラウザ内の下書きを消す（自動保存をオフにしたとき）。Web 版のみ。 */
+    clearDraft?: () => Promise<void>
   }
   exportDeck: {
     pptx: (deck: Deck) => Promise<ExportResult>
@@ -65,6 +74,8 @@ export interface PowerSlideApi {
       message: string
       detail?: string
     }) => Promise<void>
+    /** 確認を取る。okLabel のボタンが押されたら true。 */
+    confirm: (request: ConfirmRequest) => Promise<boolean>
   }
   /** 起動中に OS からファイルを開くよう求められたときに呼ばれる。 */
   onOpenRequested: (handler: (filePath: string) => void) => () => void

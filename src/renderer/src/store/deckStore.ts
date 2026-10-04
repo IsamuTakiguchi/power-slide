@@ -7,7 +7,14 @@
  */
 import { create } from 'zustand'
 import {
+  activeSheetOf,
+  activeSlides,
+  clampSheetIndex,
+  createSheet,
   createSlide,
+  MAX_SHEET_NAME_LENGTH,
+  nextSheetName,
+  uniqueSheetName,
   type Deck,
   type Slide,
   type SlideElement,
@@ -40,6 +47,11 @@ export interface DeckStore {
   inTransaction: boolean
   /** 最後に「新しいスライド」で使ったレイアウト。次回の既定にする。 */
   lastLayoutId: string
+  /**
+   * シートごとに最後に選んでいたスライド（シート ID → 番号）。Excel がシートごとに
+   * 選択セルを覚えているのと同じで、シートを行き来しても元の位置に戻れるようにする。
+   */
+  slideIndexBySheet: Record<string, number>
 
   // ---- 基本操作
   /** 履歴を 1 段積んでから deck を書き換える。 */
@@ -64,6 +76,19 @@ export interface DeckStore {
   toggleSelect: (id: string) => void
   clearSelection: () => void
   setEditing: (id: string | null) => void
+
+  // ---- シート（Excel のシート見出しと同じ操作）
+  /** シートを切り替える。内容の変更ではないので、未保存の印は付けない。 */
+  selectSheet: (index: number) => void
+  /** 開いているシートの右に新しいシートを足して開く。 */
+  addSheet: () => void
+  duplicateSheet: (index?: number) => void
+  /** 最後の 1 枚は消せない。消せたら true。 */
+  deleteSheet: (index?: number) => boolean
+  /** 名前を変える。使えない名前ならその理由を返す（変えたら null）。 */
+  renameSheet: (index: number, name: string) => string | null
+  moveSheet: (from: number, to: number) => void
+  setSheetColor: (index: number, color: string | null) => void
 
   // ---- スライド
   addSlide: (layoutId: string) => void
@@ -98,17 +123,37 @@ function cloneDeck(deck: Deck): Deck {
   return structuredClone(deck)
 }
 
+/** シートは 1 枚以上、各シートのスライドは 1 枚以上、という前提を保つ。 */
+function ensureDeckShape(deck: Deck): void {
+  if (deck.sheets.length === 0) deck.sheets.push(createSheet('シート1'))
+  for (const sheet of deck.sheets) {
+    if (sheet.slides.length === 0) sheet.slides.push(createSlide())
+  }
+  deck.activeSheet = clampSheetIndex(deck, deck.activeSheet)
+}
+
+/** いま開いているシートで選んでいたスライドを覚えた、新しい対応表を返す。 */
+function rememberSlideIndex(state: DeckStore): Record<string, number> {
+  return { ...state.slideIndexBySheet, [activeSheetOf(state.deck).id]: state.slideIndex }
+}
+
+/** スライドとその中の要素に新しい ID を振る（複製したときに ID が重ならないように）。 */
+function renewSlideIds(slide: Slide): void {
+  slide.id = newId('sl')
+  for (const element of slide.elements) element.id = newId('el')
+}
+
 export const useDeckStore = create<DeckStore>((set, get) => {
   /** 共通の書き換え処理。history=true のときだけ past に積む。 */
   const apply = (recipe: (deck: Deck) => void, history: boolean): void => {
     set((state) => {
       const next = cloneDeck(state.deck)
       recipe(next)
-      if (next.slides.length === 0) next.slides.push(createSlide())
+      ensureDeckShape(next)
       return {
         deck: next,
         dirty: true,
-        slideIndex: clamp(state.slideIndex, 0, next.slides.length - 1),
+        slideIndex: clamp(state.slideIndex, 0, activeSlides(next).length - 1),
         past: history ? [...state.past, state.deck].slice(-HISTORY_LIMIT) : state.past,
         future: history ? [] : state.future,
       }
@@ -118,7 +163,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
   /** 現在のスライドを対象にした書き換え。 */
   const editSlide = (recipe: (slide: Slide) => void, history: boolean): void => {
     apply((deck) => {
-      const slide = deck.slides[get().slideIndex]
+      const slide = activeSlides(deck)[get().slideIndex]
       if (slide) recipe(slide)
     }, history)
   }
@@ -136,6 +181,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     future: [],
     inTransaction: false,
     lastLayoutId: DEFAULT_LAYOUT_ID,
+    slideIndexBySheet: {},
 
     edit: (recipe) => apply(recipe, true),
     editLive: (recipe) => apply(recipe, false),
@@ -158,7 +204,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
           past: state.past.slice(0, -1),
           future: [state.deck, ...state.future].slice(0, HISTORY_LIMIT),
           dirty: true,
-          slideIndex: clamp(state.slideIndex, 0, previous.slides.length - 1),
+          slideIndex: clamp(state.slideIndex, 0, activeSlides(previous).length - 1),
           selectedIds: [],
           editingId: null,
         }
@@ -173,7 +219,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
           past: [...state.past, state.deck].slice(-HISTORY_LIMIT),
           future: state.future.slice(1),
           dirty: true,
-          slideIndex: clamp(state.slideIndex, 0, next.slides.length - 1),
+          slideIndex: clamp(state.slideIndex, 0, activeSlides(next).length - 1),
           selectedIds: [],
           editingId: null,
         }
@@ -191,6 +237,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
         past: [],
         future: [],
         inTransaction: false,
+        slideIndexBySheet: {},
       }),
 
     resetDeck: () => get().loadDeck(createStarterDeck(), null),
@@ -200,7 +247,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
 
     selectSlide: (index) =>
       set((state) => ({
-        slideIndex: clamp(index, 0, state.deck.slides.length - 1),
+        slideIndex: clamp(index, 0, activeSlides(state.deck).length - 1),
         selectedIds: [],
         editingId: null,
       })),
@@ -218,10 +265,121 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     clearSelection: () => set({ selectedIds: [], editingId: null }),
     setEditing: (id) => set({ editingId: id, selectedIds: id ? [id] : [] }),
 
+    selectSheet: (index) =>
+      set((state) => {
+        const target = clampSheetIndex(state.deck, index)
+        if (target === state.deck.activeSheet) return state
+        const memory = rememberSlideIndex(state)
+        const sheet = state.deck.sheets[target]
+        return {
+          // 中身は変えないので複製せず、開くシートの番号だけ差し替える
+          deck: { ...state.deck, activeSheet: target },
+          slideIndexBySheet: memory,
+          slideIndex: clamp(memory[sheet.id] ?? 0, 0, sheet.slides.length - 1),
+          selectedIds: [],
+          editingId: null,
+        }
+      }),
+
+    addSheet: () => {
+      const memory = rememberSlideIndex(get())
+      apply((deck) => {
+        const insertAt = deck.activeSheet + 1
+        const sheet = createSheet(nextSheetName(deck.sheets), [buildSlideFromLayout('title')])
+        deck.sheets.splice(insertAt, 0, sheet)
+        deck.activeSheet = insertAt
+      }, true)
+      set({ slideIndexBySheet: memory, slideIndex: 0, selectedIds: [], editingId: null })
+    },
+
+    duplicateSheet: (index) => {
+      const memory = rememberSlideIndex(get())
+      const target = index ?? get().deck.activeSheet
+      apply((deck) => {
+        const source = deck.sheets[target]
+        if (!source) return
+        const copy = structuredClone(source)
+        copy.id = newId('sh')
+        copy.name = uniqueSheetName(source.name, deck.sheets)
+        copy.slides.forEach(renewSlideIds)
+        deck.sheets.splice(target + 1, 0, copy)
+        deck.activeSheet = target + 1
+      }, true)
+      set({ slideIndexBySheet: memory, slideIndex: 0, selectedIds: [], editingId: null })
+    },
+
+    deleteSheet: (index) => {
+      const state = get()
+      if (state.deck.sheets.length <= 1) return false
+      const target = index ?? state.deck.activeSheet
+      const removedId = state.deck.sheets[target]?.id
+      if (!removedId) return false
+      apply((deck) => {
+        deck.sheets.splice(target, 1)
+        // Excel と同じく、消したシートの右隣（右端なら左隣）を開く
+        if (deck.activeSheet > target || deck.activeSheet >= deck.sheets.length) {
+          deck.activeSheet = Math.max(0, deck.activeSheet - 1)
+        }
+      }, true)
+      set((current) => {
+        const memory = { ...current.slideIndexBySheet }
+        delete memory[removedId]
+        const sheet = activeSheetOf(current.deck)
+        return {
+          slideIndexBySheet: memory,
+          slideIndex: clamp(memory[sheet.id] ?? 0, 0, sheet.slides.length - 1),
+          selectedIds: [],
+          editingId: null,
+        }
+      })
+      return true
+    },
+
+    renameSheet: (index, name) => {
+      const trimmed = name.trim()
+      if (!trimmed) return 'シート名を入力してください。'
+      if (trimmed.length > MAX_SHEET_NAME_LENGTH) {
+        return `シート名は ${MAX_SHEET_NAME_LENGTH} 文字以内にしてください。`
+      }
+      const sheets = get().deck.sheets
+      const sheet = sheets[index]
+      if (!sheet) return null
+      if (sheet.name === trimmed) return null
+      const taken = sheets.some(
+        (other, otherIndex) =>
+          otherIndex !== index && other.name.toLowerCase() === trimmed.toLowerCase(),
+      )
+      if (taken) return `「${trimmed}」という名前のシートはすでにあります。`
+      apply((deck) => {
+        const target = deck.sheets[index]
+        if (target) target.name = trimmed
+      }, true)
+      return null
+    },
+
+    moveSheet: (from, to) => {
+      if (from === to) return
+      apply((deck) => {
+        const activeId = activeSheetOf(deck).id
+        const [moved] = deck.sheets.splice(from, 1)
+        if (!moved) return
+        deck.sheets.splice(to, 0, moved)
+        deck.activeSheet = deck.sheets.findIndex((sheet) => sheet.id === activeId)
+      }, true)
+    },
+
+    setSheetColor: (index, color) =>
+      apply((deck) => {
+        const sheet = deck.sheets[index]
+        if (!sheet) return
+        if (color) sheet.color = color
+        else delete sheet.color
+      }, true),
+
     addSlide: (layoutId) => {
       const insertAt = get().slideIndex + 1
       apply((deck) => {
-        deck.slides.splice(insertAt, 0, buildSlideFromLayout(layoutId))
+        activeSlides(deck).splice(insertAt, 0, buildSlideFromLayout(layoutId))
       }, true)
       set({ slideIndex: insertAt, selectedIds: [], editingId: null, lastLayoutId: layoutId })
     },
@@ -229,12 +387,12 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     duplicateSlide: (index) => {
       const target = index ?? get().slideIndex
       apply((deck) => {
-        const source = deck.slides[target]
+        const slides = activeSlides(deck)
+        const source = slides[target]
         if (!source) return
         const copy = structuredClone(source)
-        copy.id = newId('sl')
-        for (const element of copy.elements) element.id = newId('el')
-        deck.slides.splice(target + 1, 0, copy)
+        renewSlideIds(copy)
+        slides.splice(target + 1, 0, copy)
       }, true)
       set({ slideIndex: target + 1, selectedIds: [], editingId: null })
     },
@@ -242,14 +400,15 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     deleteSlide: (index) => {
       const target = index ?? get().slideIndex
       apply((deck) => {
-        if (deck.slides.length <= 1) {
-          deck.slides = [buildSlideFromLayout('blank')]
+        const sheet = activeSheetOf(deck)
+        if (sheet.slides.length <= 1) {
+          sheet.slides = [buildSlideFromLayout('blank')]
           return
         }
-        deck.slides.splice(target, 1)
+        sheet.slides.splice(target, 1)
       }, true)
       set((state) => ({
-        slideIndex: clamp(target, 0, state.deck.slides.length - 1),
+        slideIndex: clamp(target, 0, activeSlides(state.deck).length - 1),
         selectedIds: [],
         editingId: null,
       }))
@@ -258,8 +417,9 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     moveSlide: (from, to) => {
       if (from === to) return
       apply((deck) => {
-        const [moved] = deck.slides.splice(from, 1)
-        if (moved) deck.slides.splice(to, 0, moved)
+        const slides = activeSlides(deck)
+        const [moved] = slides.splice(from, 1)
+        if (moved) slides.splice(to, 0, moved)
       }, true)
       set({ slideIndex: to, selectedIds: [], editingId: null })
     },
@@ -399,7 +559,8 @@ export const useDeckStore = create<DeckStore>((set, get) => {
 
     currentSlide: () => {
       const state = get()
-      return state.deck.slides[state.slideIndex] ?? state.deck.slides[0]
+      const slides = activeSlides(state.deck)
+      return slides[state.slideIndex] ?? slides[0]
     },
 
     theme: () => {
@@ -409,7 +570,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
 
     selectedElements: () => {
       const state = get()
-      const slide = state.deck.slides[state.slideIndex]
+      const slide = activeSlides(state.deck)[state.slideIndex]
       if (!slide) return []
       return slide.elements.filter((element) => state.selectedIds.includes(element.id))
     },

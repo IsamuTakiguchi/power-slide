@@ -4,12 +4,13 @@ import { useDeckStore } from '../store/deckStore'
 import { useUiStore, ZOOM_MAX, ZOOM_MIN } from '../store/uiStore'
 import { startPresenting } from '../lib/commands'
 import { Icon } from './Icon'
+import { activeSlides } from '@shared/deck'
 
 const ZOOM_STEP = 10
 
 export function StatusBar() {
   const slideIndex = useDeckStore((state) => state.slideIndex)
-  const slideCount = useDeckStore((state) => state.deck.slides.length)
+  const slideCount = useDeckStore((state) => activeSlides(state.deck).length)
   const themeId = useDeckStore((state) => state.deck.themeId)
   const customTheme = useDeckStore((state) => state.deck.theme)
   const notesOpen = useUiStore((state) => state.notesOpen)

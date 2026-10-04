@@ -5,6 +5,10 @@
  * ファイル保存はブラウザによって File System Access API か ダウンロードになるが、
  * 自動テストでは OS のダイアログを扱えないので、API を消してダウンロード側の経路に固定する。
  */
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 
 type Layout = 'desktop' | 'tablet' | 'phone'
@@ -15,6 +19,18 @@ function layout(): Layout {
   if (name === 'web-mobile') return 'phone'
   if (name === 'web-tablet') return 'tablet'
   return 'desktop'
+}
+
+/** ダウンロードした zip（pptx）の中の 1 エントリを文字列で取り出す。 */
+function readZipEntry(buffer: Buffer, entry: string): string {
+  const file = join(mkdtempSync(join(tmpdir(), 'power-slide-web-')), 'out.zip')
+  writeFileSync(file, buffer)
+  return execFileSync('python3', [
+    '-c',
+    `import zipfile,sys; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode('utf-8'))`,
+    file,
+    entry,
+  ]).toString()
 }
 
 async function readDownload(page: Page, action: () => Promise<void>) {
@@ -42,8 +58,13 @@ test.beforeEach(async ({ page }) => {
 test('ブラウザで起動してタイトルスライドが出る', async ({ page }) => {
   await expect(page.locator('.slide-list-item')).toHaveCount(1)
   await expect(page.locator('.canvas-stage .slide-element')).toHaveCount(2)
-  // Electron ではないので、下書きをブラウザに残すモードになっている
-  await expect(page.locator('.autosave')).toHaveText(/下書き/)
+  // 自動保存スイッチは既定でオン（保存先が無いうちはブラウザ内に残す）
+  const autosave = page.getByRole('switch', { name: '自動保存' })
+  await expect(autosave).toBeVisible()
+  await expect(autosave).toHaveAttribute('aria-checked', 'true')
+  // シート見出しは 1 枚
+  await expect(page.locator('.sheet-tab')).toHaveCount(1)
+  await expect(page.getByRole('tab', { name: 'シート1' })).toHaveAttribute('aria-selected', 'true')
   // PNG 書き出しは Web 版に無い
   await page.getByRole('tab', { name: 'ファイル' }).click()
   await expect(page.getByRole('button', { name: 'PowerPoint (.pptx)' })).toBeVisible()
@@ -154,7 +175,9 @@ test('スライドを追加して保存すると .pslide がダウンロード�
   )
   expect(name).toBe('web-test.pslide')
   const saved = JSON.parse(buffer.toString('utf8'))
-  expect(saved.slides).toHaveLength(2)
+  expect(saved.schemaVersion).toBe(2)
+  expect(saved.sheets).toHaveLength(1)
+  expect(saved.sheets[0].slides).toHaveLength(2)
   await expect(page.locator('.save-state')).toContainText('保存済み')
 })
 
@@ -179,6 +202,80 @@ test('PowerPoint 形式をブラウザ内で組み立ててダウンロードで
   expect(name).toBe('web-test.pptx')
   expect(buffer.subarray(0, 2).toString('latin1')).toBe('PK')
   expect(buffer.toString('latin1')).toContain('ppt/slides/slide1.xml')
+})
+
+test('シートを足すと、シートごとに別々のスライドを持てる', async ({ page }) => {
+  await page.getByRole('button', { name: '新しいシート' }).click()
+  await expect(page.getByRole('tab', { name: 'シート2' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(2)
+
+  await page.getByRole('tab', { name: 'シート1' }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(1)
+  await page.getByRole('tab', { name: 'シート2' }).click()
+  await expect(page.locator('.slide-list-item')).toHaveCount(2)
+})
+
+test('見出しのメニューからシートの名前・色を変え、確認して削除できる', async ({ page }) => {
+  await page.getByRole('button', { name: '新しいシート' }).click()
+
+  // 右クリック（スマホでは長押し）でメニュー
+  await page.getByRole('tab', { name: 'シート2' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: '名前の変更' }).click()
+  await page.getByLabel('シート名').fill('付録')
+  await page.getByLabel('シート名').press('Enter')
+  await expect(page.getByRole('tab', { name: '付録' })).toBeVisible()
+
+  // 同じ名前は付けられない
+  await page.getByRole('tab', { name: 'シート1' }).dblclick()
+  await page.getByLabel('シート名').fill('付録')
+  await page.getByLabel('シート名').press('Enter')
+  await expect(page.locator('.status-toast')).toContainText('すでにあります')
+  await page.getByLabel('シート名').press('Escape')
+  await expect(page.getByRole('tab', { name: 'シート1' })).toBeVisible()
+
+  await page.getByRole('tab', { name: '付録' }).click({ button: 'right' })
+  await page.getByRole('button', { name: '見出しの色 #00b050' }).click()
+  await expect(page.getByRole('tab', { name: '付録' })).toHaveClass(/has-color/)
+
+  // 削除は確認してから
+  page.once('dialog', (dialog) => void dialog.accept())
+  await page.getByRole('tab', { name: '付録' }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: '削除' }).click()
+  await expect(page.locator('.sheet-tab')).toHaveCount(1)
+})
+
+test('自動保存をオフにすると、ブラウザ内の下書きも残さない', async ({ page }) => {
+  const autosave = page.getByRole('switch', { name: '自動保存' })
+  await autosave.click()
+  await expect(autosave).toHaveAttribute('aria-checked', 'false')
+
+  await page.getByLabel('プレゼンテーション名').fill('残らないはずの下書き')
+  await page.getByRole('button', { name: '新しいスライド', exact: true }).click()
+  await page.waitForTimeout(2500)
+
+  // 閉じる前の確認は出るが、ここでは閉じて読み直す
+  page.once('dialog', (dialog) => void dialog.accept())
+  await page.reload()
+  await page.waitForSelector('.app-shell')
+  await expect(page.getByLabel('プレゼンテーション名')).not.toHaveValue('残らないはずの下書き')
+  await expect(page.locator('.slide-list-item')).toHaveCount(1)
+  // スイッチの状態は覚えている
+  await expect(page.getByRole('switch', { name: '自動保存' })).toHaveAttribute('aria-checked', 'false')
+})
+
+test('すべてのシートを PowerPoint にすると、シートがセクションになる', async ({ page }) => {
+  await useAsciiTitle(page)
+  await page.getByRole('button', { name: '新しいシート' }).click()
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('radio', { name: /すべてのシート/ }).click()
+  const { buffer } = await readDownload(page, () =>
+    page.getByRole('button', { name: 'PowerPoint (.pptx)' }).click(),
+  )
+  const presentation = readZipEntry(buffer, 'ppt/presentation.xml')
+  expect(presentation).toContain('name="シート1"')
+  expect(presentation).toContain('name="シート2"')
+  expect(buffer.toString('latin1')).toContain('ppt/slides/slide2.xml')
 })
 
 test('PDF はブラウザの印刷に渡す', async ({ page }) => {

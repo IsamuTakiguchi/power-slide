@@ -27,7 +27,16 @@ export const IPC = {
   windowSetDirty: 'window:setDirty',
   menuCommand: 'menu:command',
   showMessage: 'dialog:message',
+  showConfirm: 'dialog:confirm',
 } as const
+
+/** 「はい／キャンセル」の確認ダイアログに渡す内容。 */
+export interface ConfirmRequest {
+  message: string
+  detail?: string
+  /** 実行する側のボタンの文言（例:「削除」）。 */
+  okLabel: string
+}
 
 /**
  * 書き出し用ルート（`#/render`）への描画要求。
