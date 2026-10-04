@@ -20,6 +20,8 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 
 const workDir = mkdtempSync(join(tmpdir(), 'power-slide-test-'))
 const deckPath = join(workDir, 'deck.pslide')
+/** 「保存先の無い新規ファイルで自動保存をオン」のテストで作り、以降の表のテストでも使うファイル。 */
+const autosaveNewPath = join(workDir, 'autosave-new.pslide')
 
 let app: ElectronApplication
 let page: Page
@@ -516,12 +518,72 @@ test('保存先の無い新規ファイルで自動保存をオンにすると�
   const autosave = page.getByRole('switch', { name: '自動保存' })
   await expect(autosave).toHaveAttribute('aria-checked', 'false')
 
-  const newPath = join(workDir, 'autosave-new.pslide')
-  await stubSaveDialog(app, newPath)
+  await stubSaveDialog(app, autosaveNewPath)
   await autosave.click()
   await expect(autosave).toHaveAttribute('aria-checked', 'true')
-  await expect.poll(() => existsSync(newPath)).toBe(true)
-  expect(readDeckFile(newPath).sheets).toHaveLength(1)
+  await expect.poll(() => existsSync(autosaveNewPath)).toBe(true)
+  expect(readDeckFile(autosaveNewPath).sheets).toHaveLength(1)
+})
+
+/** ファイルに保存された最初の表のセルの文字。 */
+function savedTableTexts(filePath: string): string[][] | null {
+  const deck = readDeckFile(filePath)
+  for (const slide of deck.sheets[0].slides as { elements: { type: string; rows?: { text: string }[][] }[] }[]) {
+    const table = slide.elements.find((element) => element.type === 'table')
+    if (table?.rows) return table.rows.map((row) => row.map((cell) => cell.text))
+  }
+  return null
+}
+
+test('表を挿入して Excel と同じ操作で入力すると、表として自動保存される', async () => {
+  await page.getByRole('tab', { name: '挿入' }).click()
+  await page.getByRole('button', { name: /^表/ }).click()
+  await page.getByRole('menuitem', { name: '2 行 × 2 列' }).click()
+  await expect(page.locator('.table-editor')).toBeVisible()
+
+  await page.keyboard.type('項目')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('金額')
+  await page.keyboard.press('Tab')
+  await page.keyboard.insertText('売上')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('1200')
+  await page.keyboard.press('Enter')
+
+  await expect
+    .poll(() => savedTableTexts(autosaveNewPath), { timeout: 15_000 })
+    .toEqual([
+      ['項目', '金額'],
+      ['売上', '1200'],
+    ])
+})
+
+test('Excel でコピーした範囲を Ctrl+V すると表になる（OS のクリップボード経由）', async () => {
+  // 表から出て、スライドの何もない所を選ぶ
+  await page.keyboard.press('Escape')
+  await page.locator('.canvas-area').click({ position: { x: 5, y: 5 } })
+  const before = await page.locator('.canvas-stage .slide-table').count()
+
+  await app.evaluate(({ clipboard }) => clipboard.writeText('支店\t件数\r\n東京\t12\r\n大阪\t8\r\n'))
+  await page.keyboard.press('Control+V')
+  await expect(page.locator('.canvas-stage .slide-table')).toHaveCount(before + 1)
+  // 「編集」メニューの貼り付けと二重に貼られていないこと
+  await page.waitForTimeout(500)
+  await expect(page.locator('.canvas-stage .slide-table')).toHaveCount(before + 1)
+  await expect(page.locator('.canvas-stage .slide-table').last()).toContainText('大阪')
+})
+
+test('表を含むスライドを PowerPoint に書き出すと、本物の表として入る', async () => {
+  const pptxPath = join(workDir, 'table.pptx')
+  await stubSaveDialog(app, pptxPath)
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  await page.getByRole('button', { name: 'PowerPoint (.pptx)' }).click()
+
+  await expect.poll(() => existsSync(pptxPath), { timeout: 60_000 }).toBe(true)
+  const slide = await readEntry(pptxPath, 'ppt/slides/slide1.xml')
+  expect(slide).toContain('<a:tbl>')
+  expect(slide).toContain('<a:t>金額</a:t>')
+  expect(slide).toContain('<a:t>大阪</a:t>')
 })
 
 test('OS からファイルを指定して起動すると、そのファイルを開く', async () => {

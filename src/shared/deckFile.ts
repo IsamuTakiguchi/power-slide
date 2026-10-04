@@ -14,6 +14,8 @@ import {
   type Sheet,
   type Slide,
   type SlideElement,
+  type TableCell,
+  type TableElement,
   type TextAlign,
   type TextElement,
   type TextRun,
@@ -204,9 +206,65 @@ function normalizeElement(input: unknown, index: number): SlideElement | null {
       if (ratio > 0) element.naturalRatio = ratio
       return element
     }
+    case 'table':
+      return normalizeTable(input, base)
     default:
       return null
   }
+}
+
+/**
+ * 表を整える。手で直したファイルも開けるよう、セルは文字列だけでも受け付け、
+ * 行ごとに列の数が違えば空のセルで埋める。
+ */
+function normalizeTable(
+  input: Record<string, unknown>,
+  base: Pick<TableElement, 'id' | 'x' | 'y' | 'w' | 'h' | 'rotation'>,
+): TableElement | null {
+  if (!Array.isArray(input.rows)) return null
+  const rows = input.rows
+    .filter((row): row is unknown[] => Array.isArray(row))
+    .map((row) => row.map(normalizeCell))
+  const cols = Math.max(0, ...rows.map((row) => row.length))
+  if (rows.length === 0 || cols === 0) return null
+  for (const row of rows) {
+    while (row.length < cols) row.push({ text: '' })
+  }
+  const widthsRaw = Array.isArray(input.colWidths) ? input.colWidths : []
+  const colWidths = Array.from({ length: cols }, (_, index) => {
+    const width = widthsRaw[index]
+    return typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : 1
+  })
+  return {
+    ...base,
+    // 表は回転させない（PowerPoint の表も回転できない）
+    rotation: 0,
+    type: 'table',
+    rows,
+    colWidths,
+    fontFamily: str(input.fontFamily, ''),
+    fontSize: Math.max(4, num(input.fontSize, 22)),
+    headerRow: input.headerRow !== false,
+    bandedRows: input.bandedRows !== false,
+    firstColumn: input.firstColumn === true,
+    borderColor: str(input.borderColor, ''),
+    headerFill: str(input.headerFill, ''),
+  }
+}
+
+function normalizeCell(input: unknown): TableCell {
+  if (typeof input === 'string' || typeof input === 'number') return { text: String(input) }
+  if (!isRecord(input)) return { text: '' }
+  const cell: TableCell = { text: typeof input.text === 'number' ? String(input.text) : str(input.text, '') }
+  if (typeof input.bold === 'boolean') cell.bold = input.bold
+  const color = optionalStr(input.color)
+  if (color) cell.color = color
+  const fill = optionalStr(input.fill)
+  if (fill) cell.fill = fill
+  if (input.align === 'left' || input.align === 'center' || input.align === 'right') {
+    cell.align = input.align
+  }
+  return cell
 }
 
 function normalizeRuns(input: unknown): TextRun[] {

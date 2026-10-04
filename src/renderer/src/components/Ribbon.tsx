@@ -6,6 +6,8 @@
  */
 import type { JSX } from 'react'
 import { useUiStore, type RibbonTab } from '../store/uiStore'
+import { useDeckStore } from '../store/deckStore'
+import { selectTargetTable } from '../lib/tableCommands'
 import { Icon } from './Icon'
 import { useDropdown } from './ribbon/RibbonParts'
 import { FileMenu } from './ribbon/FileMenu'
@@ -13,6 +15,7 @@ import { HomeTab } from './ribbon/HomeTab'
 import { InsertTab } from './ribbon/InsertTab'
 import { DesignTab } from './ribbon/DesignTab'
 import { SlideShowTab } from './ribbon/SlideShowTab'
+import { TableTab } from './ribbon/TableTab'
 
 const TABS: { id: RibbonTab; label: string }[] = [
   { id: 'home', label: 'ホーム' },
@@ -21,16 +24,20 @@ const TABS: { id: RibbonTab; label: string }[] = [
   { id: 'slideshow', label: 'スライドショー' },
 ]
 
-const PANELS: Record<RibbonTab, () => JSX.Element> = {
+const PANELS: Record<RibbonTab, () => JSX.Element | null> = {
   home: HomeTab,
   insert: InsertTab,
   design: DesignTab,
   slideshow: SlideShowTab,
+  table: TableTab,
 }
 
 export function Ribbon() {
-  const tab = useUiStore((state) => state.ribbonTab)
+  const selectedTab = useUiStore((state) => state.ribbonTab)
   const setTab = useUiStore((state) => state.setRibbonTab)
+  // 「表」タブは表を選んでいるときだけ出す（Office のコンテキスト タブと同じ）
+  const hasTable = useDeckStore((state) => selectTargetTable(state) !== null)
+  const tab = selectedTab === 'table' && !hasTable ? 'home' : selectedTab
   const collapsed = useUiStore((state) => state.ribbonCollapsed)
   const toggleRibbon = useUiStore((state) => state.toggleRibbon)
   const fileMenu = useDropdown()
@@ -64,6 +71,17 @@ export function Ribbon() {
             {item.label}
           </button>
         ))}
+        {hasTable && (
+          <button
+            type="button"
+            role="tab"
+            className={['ribbon-tab', 'is-contextual', tab === 'table' ? 'is-active' : ''].filter(Boolean).join(' ')}
+            aria-selected={tab === 'table'}
+            onClick={() => (tab === 'table' ? toggleRibbon() : setTab('table'))}
+          >
+            表
+          </button>
+        )}
         <span className="ribbon-tabs-spacer" />
         <button
           type="button"

@@ -48,9 +48,93 @@ export type IconName =
   | 'line'
   | 'arrow'
   | 'appLogo'
+  | 'table'
+  | 'rowAbove'
+  | 'rowBelow'
+  | 'colLeft'
+  | 'colRight'
+  | 'rowDelete'
+  | 'colDelete'
+  | 'fill'
+  | 'eraser'
+  | 'check'
+  | 'paste'
+  | 'cut'
 
 /** 各アイコンの描画内容。stroke ベースが基本で、塗りが必要なものだけ fill を持つ。 */
 const PATHS: Record<IconName, ReactNode> = {
+  // ---- 表
+  table: (
+    <>
+      <rect x="2.5" y="3.5" width="15" height="13" rx="1" />
+      <path d="M2.5 7.5h15M2.5 12h15M7.5 3.5v13M12.5 3.5v13" />
+      <path d="M2.5 3.5h15v4h-15z" fill="currentColor" fillOpacity="0.25" stroke="none" />
+    </>
+  ),
+  rowAbove: (
+    <>
+      <rect x="3" y="10" width="14" height="7" rx="0.8" />
+      <path d="M3 13.5h14M10 2.5v5M7.5 5h5" />
+    </>
+  ),
+  rowBelow: (
+    <>
+      <rect x="3" y="3" width="14" height="7" rx="0.8" />
+      <path d="M3 6.5h14M10 12.5v5M7.5 15h5" />
+    </>
+  ),
+  colLeft: (
+    <>
+      <rect x="10" y="3" width="7" height="14" rx="0.8" />
+      <path d="M13.5 3v14M5 7.5v5M2.5 10h5" />
+    </>
+  ),
+  colRight: (
+    <>
+      <rect x="3" y="3" width="7" height="14" rx="0.8" />
+      <path d="M6.5 3v14M15 7.5v5M12.5 10h5" />
+    </>
+  ),
+  rowDelete: (
+    <>
+      <rect x="3" y="6.5" width="14" height="7" rx="0.8" />
+      <path d="m7.5 8.5 5 3M12.5 8.5l-5 3" />
+    </>
+  ),
+  colDelete: (
+    <>
+      <rect x="6.5" y="3" width="7" height="14" rx="0.8" />
+      <path d="m8.5 7.5 3 5M11.5 7.5l-3 5" />
+    </>
+  ),
+  fill: (
+    <>
+      <path d="m4 9.5 5.5-5.5 6 6-5.5 5.5z" />
+      <path d="M9.5 4 8 2.5M15.5 13.5c.8 1.2 1.2 2 1.2 2.6a1.2 1.2 0 0 1-2.4 0c0-.6.4-1.4 1.2-2.6z" />
+    </>
+  ),
+  eraser: (
+    <>
+      <path d="m8 16.5-4.2-4.2a1.2 1.2 0 0 1 0-1.7l7-7a1.2 1.2 0 0 1 1.7 0l4.2 4.2a1.2 1.2 0 0 1 0 1.7l-6.8 7z" />
+      <path d="M6.5 9 11 13.5M8 16.5h9" />
+    </>
+  ),
+  check: <path d="m4.5 10.5 3.5 3.5 7.5-8" strokeWidth="1.8" />,
+  paste: (
+    <>
+      <rect x="4" y="3.5" width="10" height="13.5" rx="1" />
+      <path d="M7 3.5V2.5h4v1M8.5 9.5h7.5v8h-7.5z" fill="#fff" />
+      <path d="M10 12h4.5M10 14.5h3" />
+    </>
+  ),
+  cut: (
+    <>
+      <circle cx="6" cy="14.5" r="2.3" />
+      <circle cx="14" cy="14.5" r="2.3" />
+      <path d="M7.6 12.8 14 3M12.4 12.8 6 3" />
+    </>
+  ),
+
   save: (
     <>
       <path d="M4 3h9l3 3v11H4z" />

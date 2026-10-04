@@ -1,13 +1,16 @@
 /** リボン「挿入」タブ。 */
 import { insertImage, insertTextBox } from '../../lib/commands'
 import { BigButton, RibbonGroup } from './RibbonParts'
-import { NewSlideButton, ShapesButton } from './SharedButtons'
+import { NewSlideButton, ShapesButton, TableButton } from './SharedButtons'
 
 export function InsertTab() {
   return (
     <>
       <RibbonGroup label="スライド">
         <NewSlideButton />
+      </RibbonGroup>
+      <RibbonGroup label="表">
+        <TableButton />
       </RibbonGroup>
       <RibbonGroup label="画像">
         <BigButton icon="image" label="画像" title="ファイルから画像を挿入" onClick={() => void insertImage()} />

@@ -47,14 +47,8 @@ export function useEditorShortcuts(): void {
             if (event.shiftKey) store.redo()
             else store.undo()
             return
-          case 'c':
-            event.preventDefault()
-            store.copySelected()
-            return
-          case 'v':
-            event.preventDefault()
-            store.pasteClipboard()
-            return
+          // Ctrl+C / Ctrl+X / Ctrl+V は useClipboard が copy・cut・paste イベントで受ける
+          // （ここで止めると OS のクリップボードが読めず、Excel からの貼り付けができない）
           case 'd':
             event.preventDefault()
             store.duplicateSelected()
@@ -67,6 +61,10 @@ export function useEditorShortcuts(): void {
             return
         }
       }
+
+      // 表の中にいるときの操作は表の側（TableEditor）が受け持つ。入力欄から
+      // フォーカスが外れていても、矢印で表そのものが動いたりしないようにする
+      if (store.tableCursor && event.key !== 'Escape') return
 
       switch (event.key) {
         case 'Delete':
@@ -98,15 +96,19 @@ export function useEditorShortcuts(): void {
         case 'Escape':
           store.clearSelection()
           break
-        case 'Enter': {
-          // 選択中のテキスト要素を編集開始
+        case 'Enter':
+        case 'F2': {
+          // 選択中のテキストは文字編集、表は表の中の操作を始める（F2 はセルの編集から）
           const [id] = store.selectedIds
-          if (!id) return
+          if (!id || store.selectedIds.length !== 1) return
           const slide = activeSlides(store.deck)[store.slideIndex]
           const element = slide?.elements.find((item) => item.id === id)
           if (element?.type === 'text') {
             event.preventDefault()
             store.setEditing(id)
+          } else if (element?.type === 'table') {
+            event.preventDefault()
+            store.enterTable(id, { row: 0, col: 0 }, event.key === 'F2')
           }
           break
         }

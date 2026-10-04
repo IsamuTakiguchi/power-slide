@@ -18,14 +18,28 @@ import {
   type Deck,
   type Slide,
   type SlideElement,
+  type TableElement,
   type Theme,
 } from '@shared/deck'
+import { clampPos, type CellPos } from '@shared/table'
 import { buildSlideFromLayout, createStarterDeck, DEFAULT_LAYOUT_ID } from '@shared/layouts'
 import { newId } from '@shared/id'
 import { resolveTheme } from '@shared/themes'
 import { clamp, SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
 
 const HISTORY_LIMIT = 50
+
+/**
+ * 表の中を操作しているときのセル選択（Excel の作業セルと範囲）。
+ * active が作業セル、anchor が Shift で範囲を広げるときの起点。
+ */
+export interface TableCursor {
+  elementId: string
+  active: CellPos
+  anchor: CellPos
+  /** 増えるたびに、作業セルを編集状態にする（ダブルクリック・F2 の合図）。 */
+  editRequest: number
+}
 
 /** 複製・貼り付け時のずらし量。 */
 const PASTE_OFFSET = 24
@@ -40,6 +54,8 @@ export interface DeckStore {
   selectedIds: string[]
   /** インライン編集中のテキスト要素。 */
   editingId: string | null
+  /** 表の中を操作しているときのセル選択。表の外ではいつも null。 */
+  tableCursor: TableCursor | null
   clipboard: SlideElement[]
   past: Deck[]
   future: Deck[]
@@ -76,6 +92,19 @@ export interface DeckStore {
   toggleSelect: (id: string) => void
   clearSelection: () => void
   setEditing: (id: string | null) => void
+
+  // ---- 表
+  /** 表の中の操作を始める（表を選び、作業セルを置く）。edit なら最初から入力状態にする。 */
+  enterTable: (id: string, pos?: CellPos, edit?: boolean) => void
+  /** 作業セルを動かす。extend なら起点を残して範囲を広げる。 */
+  setTableCursor: (active: CellPos, extend?: boolean) => void
+  /** 起点と作業セルを直接指定する（範囲をまとめて選ぶとき）。 */
+  setTableRange: (anchor: CellPos, active: CellPos) => void
+  /** 作業セルを編集状態にする。 */
+  requestCellEdit: () => void
+  exitTable: () => void
+  /** 表を書き換える（live でなければ履歴に積む）。 */
+  editTable: (id: string, recipe: (table: TableElement) => void, live?: boolean) => void
 
   // ---- シート（Excel のシート見出しと同じ操作）
   /** シートを切り替える。内容の変更ではないので、未保存の印は付けない。 */
@@ -137,6 +166,23 @@ function rememberSlideIndex(state: DeckStore): Record<string, number> {
   return { ...state.slideIndexBySheet, [activeSheetOf(state.deck).id]: state.slideIndex }
 }
 
+/**
+ * 表のセル選択を、書き換え後のデッキに合わせる。表が無くなっていれば外し、
+ * 行・列が減っていればはみ出さない位置に寄せる。
+ */
+function validCursor(deck: Deck, slideIndex: number, cursor: TableCursor | null): TableCursor | null {
+  if (!cursor) return null
+  const table = findTable(deck, slideIndex, cursor.elementId)
+  if (!table) return null
+  return { ...cursor, active: clampPos(table, cursor.active), anchor: clampPos(table, cursor.anchor) }
+}
+
+function findTable(deck: Deck, slideIndex: number, id: string): TableElement | undefined {
+  return activeSlides(deck)[slideIndex]?.elements.find(
+    (element): element is TableElement => element.id === id && element.type === 'table',
+  )
+}
+
 /** スライドとその中の要素に新しい ID を振る（複製したときに ID が重ならないように）。 */
 function renewSlideIds(slide: Slide): void {
   slide.id = newId('sl')
@@ -150,10 +196,12 @@ export const useDeckStore = create<DeckStore>((set, get) => {
       const next = cloneDeck(state.deck)
       recipe(next)
       ensureDeckShape(next)
+      const slideIndex = clamp(state.slideIndex, 0, activeSlides(next).length - 1)
       return {
         deck: next,
         dirty: true,
-        slideIndex: clamp(state.slideIndex, 0, activeSlides(next).length - 1),
+        slideIndex,
+        tableCursor: validCursor(next, slideIndex, state.tableCursor),
         past: history ? [...state.past, state.deck].slice(-HISTORY_LIMIT) : state.past,
         future: history ? [] : state.future,
       }
@@ -176,6 +224,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
     slideIndex: 0,
     selectedIds: [],
     editingId: null,
+    tableCursor: null,
     clipboard: [],
     past: [],
     future: [],
@@ -199,14 +248,18 @@ export const useDeckStore = create<DeckStore>((set, get) => {
       set((state) => {
         const previous = state.past.at(-1)
         if (!previous) return state
+        const slideIndex = clamp(state.slideIndex, 0, activeSlides(previous).length - 1)
+        // 表の中で元に戻したときは、表から出ずに続けて操作できるようにする
+        const tableCursor = validCursor(previous, slideIndex, state.tableCursor)
         return {
           deck: previous,
           past: state.past.slice(0, -1),
           future: [state.deck, ...state.future].slice(0, HISTORY_LIMIT),
           dirty: true,
-          slideIndex: clamp(state.slideIndex, 0, activeSlides(previous).length - 1),
-          selectedIds: [],
+          slideIndex,
+          selectedIds: tableCursor ? [tableCursor.elementId] : [],
           editingId: null,
+          tableCursor,
         }
       }),
 
@@ -214,14 +267,17 @@ export const useDeckStore = create<DeckStore>((set, get) => {
       set((state) => {
         const next = state.future[0]
         if (!next) return state
+        const slideIndex = clamp(state.slideIndex, 0, activeSlides(next).length - 1)
+        const tableCursor = validCursor(next, slideIndex, state.tableCursor)
         return {
           deck: next,
           past: [...state.past, state.deck].slice(-HISTORY_LIMIT),
           future: state.future.slice(1),
           dirty: true,
-          slideIndex: clamp(state.slideIndex, 0, activeSlides(next).length - 1),
-          selectedIds: [],
+          slideIndex,
+          selectedIds: tableCursor ? [tableCursor.elementId] : [],
           editingId: null,
+          tableCursor,
         }
       }),
 
@@ -238,6 +294,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
         future: [],
         inTransaction: false,
         slideIndexBySheet: {},
+        tableCursor: null,
       }),
 
     resetDeck: () => get().loadDeck(createStarterDeck(), null),
@@ -250,9 +307,19 @@ export const useDeckStore = create<DeckStore>((set, get) => {
         slideIndex: clamp(index, 0, activeSlides(state.deck).length - 1),
         selectedIds: [],
         editingId: null,
+        tableCursor: null,
       })),
 
-    select: (ids) => set({ selectedIds: ids, editingId: null }),
+    select: (ids) =>
+      set((state) => ({
+        selectedIds: ids,
+        editingId: null,
+        // 表の中の操作は、その表だけを選んでいる間だけ続ける
+        tableCursor:
+          state.tableCursor && ids.length === 1 && ids[0] === state.tableCursor.elementId
+            ? state.tableCursor
+            : null,
+      })),
 
     toggleSelect: (id) =>
       set((state) => ({
@@ -260,10 +327,64 @@ export const useDeckStore = create<DeckStore>((set, get) => {
           ? state.selectedIds.filter((item) => item !== id)
           : [...state.selectedIds, id],
         editingId: null,
+        tableCursor: null,
       })),
 
-    clearSelection: () => set({ selectedIds: [], editingId: null }),
-    setEditing: (id) => set({ editingId: id, selectedIds: id ? [id] : [] }),
+    clearSelection: () => set({ selectedIds: [], editingId: null, tableCursor: null }),
+    setEditing: (id) => set({ editingId: id, selectedIds: id ? [id] : [], tableCursor: null }),
+
+    enterTable: (id, pos = { row: 0, col: 0 }, edit = false) =>
+      set((state) => {
+        const table = findTable(state.deck, state.slideIndex, id)
+        if (!table) return state
+        const active = clampPos(table, pos)
+        return {
+          selectedIds: [id],
+          editingId: null,
+          tableCursor: {
+            elementId: id,
+            active,
+            anchor: active,
+            editRequest: edit ? (state.tableCursor?.editRequest ?? 0) + 1 : 0,
+          },
+        }
+      }),
+
+    setTableCursor: (active, extend = false) =>
+      set((state) => {
+        const cursor = state.tableCursor
+        if (!cursor) return state
+        const table = findTable(state.deck, state.slideIndex, cursor.elementId)
+        if (!table) return { tableCursor: null }
+        const next = clampPos(table, active)
+        return { tableCursor: { ...cursor, active: next, anchor: extend ? cursor.anchor : next } }
+      }),
+
+    setTableRange: (anchor, active) =>
+      set((state) => {
+        const cursor = state.tableCursor
+        if (!cursor) return state
+        const table = findTable(state.deck, state.slideIndex, cursor.elementId)
+        if (!table) return { tableCursor: null }
+        return {
+          tableCursor: { ...cursor, anchor: clampPos(table, anchor), active: clampPos(table, active) },
+        }
+      }),
+
+    requestCellEdit: () =>
+      set((state) =>
+        state.tableCursor
+          ? { tableCursor: { ...state.tableCursor, editRequest: state.tableCursor.editRequest + 1 } }
+          : state,
+      ),
+
+    exitTable: () => set({ tableCursor: null }),
+
+    editTable: (id, recipe, live = false) =>
+      apply((deck) => {
+        const table = findTable(deck, get().slideIndex, id)
+        if (table) recipe(table)
+      }, !live),
 
     selectSheet: (index) =>
       set((state) => {
@@ -278,6 +399,7 @@ export const useDeckStore = create<DeckStore>((set, get) => {
           slideIndex: clamp(memory[sheet.id] ?? 0, 0, sheet.slides.length - 1),
           selectedIds: [],
           editingId: null,
+          tableCursor: null,
         }
       }),
 

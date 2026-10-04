@@ -10,8 +10,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { MAX_SHEET_NAME_LENGTH } from '@shared/deck'
 import { useDeckStore } from '../store/deckStore'
-import { flashStatus, useUiStore } from '../store/uiStore'
+import { flashStatus } from '../store/uiStore'
 import { deleteSheet } from '../lib/commands'
+import { ContextMenu } from './ContextMenu'
 import { Icon } from './Icon'
 
 /** 見出しの色の候補（Excel の「標準の色」と同じ並び）。 */
@@ -258,26 +259,8 @@ function SheetMenu({
   const duplicateSheet = useDeckStore((state) => state.duplicateSheet)
   const moveSheet = useDeckStore((state) => state.moveSheet)
   const setSheetColor = useDeckStore((state) => state.setSheetColor)
-  const compact = useUiStore((state) => state.compact)
-  const ref = useRef<HTMLDivElement>(null)
   const { index } = menu
   const sheet = sheets[index]
-
-  // 外側を押すか Esc で閉じる
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) onClose()
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
 
   if (!sheet) return null
 
@@ -286,16 +269,8 @@ function SheetMenu({
     void action()
   }
 
-  // PC では押した位置の上に出す。狭い画面では CSS で下から出るシートになる
-  const position = compact
-    ? undefined
-    : {
-        left: Math.min(menu.x, window.innerWidth - 230),
-        bottom: Math.max(8, window.innerHeight - menu.y + 4),
-      }
-
   return (
-    <div className="dropdown sheet-menu" role="menu" aria-label={`シート「${sheet.name}」`} ref={ref} style={position}>
+    <ContextMenu point={menu} label={`シート「${sheet.name}」`} className="sheet-menu" onClose={onClose}>
       <div className="gallery-title">シート「{sheet.name}」</div>
       <button
         type="button"
@@ -361,6 +336,6 @@ function SheetMenu({
       >
         削除
       </button>
-    </div>
+    </ContextMenu>
   )
 }

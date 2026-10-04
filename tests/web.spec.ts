@@ -278,6 +278,156 @@ test('すべてのシートを PowerPoint にすると、シートがセクシ�
   expect(buffer.toString('latin1')).toContain('ppt/slides/slide2.xml')
 })
 
+/** 表を挿入する（挿入タブ → 表 → マス目）。挿入するとすぐ左上のセルに入力できる。 */
+async function insertTable(page: Page, rows: number, cols: number): Promise<void> {
+  await page.getByRole('tab', { name: '挿入' }).click()
+  await page.getByRole('button', { name: /^表/ }).click()
+  await page.getByRole('menuitem', { name: `${rows} 行 × ${cols} 列` }).click()
+  await expect(page.locator('.table-editor')).toBeVisible()
+}
+
+function tableCells(page: Page) {
+  return page.locator('.canvas-stage .slide-table td').allTextContents()
+}
+
+/** 擬似的な貼り付け（Excel がクリップボードに入れるのと同じ形で渡す）。 */
+async function pasteText(page: Page, selector: string, text: string, html = ''): Promise<void> {
+  await page.evaluate(
+    ({ selector, text, html }) => {
+      const data = new DataTransfer()
+      data.setData('text/plain', text)
+      if (html) data.setData('text/html', html)
+      const target = document.querySelector(selector) ?? document
+      target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    },
+    { selector, text, html },
+  )
+}
+
+test('表を挿入すると、Excel と同じキー操作で入力・移動できる', async ({ page }) => {
+  await insertTable(page, 2, 3)
+  // 「表」タブが開き、数式バーに番地が出る
+  await expect(page.getByRole('tab', { name: '表', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.name-box')).toHaveText('A1')
+
+  // そのまま打てば入力、Tab で右へ（行の端では次の行へ）
+  await page.keyboard.type('項目')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('2025')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('2026')
+  await page.keyboard.press('Tab')
+  await page.keyboard.insertText('売上') // 日本語入力で確定した文字と同じ入り方
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('120')
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('150')
+  // 最後のセルで Tab を押すと行が増える
+  await page.keyboard.press('Tab')
+  await expect(page.locator('.canvas-stage .slide-table tr')).toHaveCount(3)
+  await page.keyboard.type('取り消す文字')
+  await page.keyboard.press('Escape')
+  expect(await tableCells(page)).toEqual(['項目', '2025', '2026', '売上', '120', '150', '', '', ''])
+
+  // F2 で今の文字に続けて編集し、Enter で確定して下へ
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('F2')
+  await page.keyboard.type('0')
+  await page.keyboard.press('Enter')
+  expect((await tableCells(page))[4]).toBe('1200')
+
+  // Shift＋矢印で範囲を選ぶと、ステータスバーに番地と集計が出る（Excel と同じ）
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Shift+ArrowRight')
+  await expect(page.locator('.status-address')).toHaveText('B2:C2')
+  await expect(page.locator('.status-summary')).toContainText('合計: 1,350')
+  await expect(page.locator('.status-cell-mode')).toHaveText('準備完了')
+
+  // Delete で範囲の文字を消し、Ctrl+Z で戻す
+  await page.keyboard.press('Delete')
+  expect((await tableCells(page)).slice(3, 6)).toEqual(['売上', '', ''])
+  await page.keyboard.press('Control+z')
+  expect((await tableCells(page)).slice(3, 6)).toEqual(['売上', '1200', '150'])
+})
+
+test('数式バーでもセルを編集でき、Enter で次のセルへ進む', async ({ page }) => {
+  await insertTable(page, 3, 2)
+  const bar = page.getByLabel('セルの内容')
+  await bar.click()
+  await page.keyboard.insertText('長い説明文')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.name-box')).toHaveText('A2')
+  if (layout() !== 'desktop') {
+    // スマホ・タブレットはバーに残ったまま続けて打てる。◀▲▼▶ でも移動できる
+    await page.keyboard.insertText('続けて入力')
+    await page.getByRole('button', { name: '右のセル' }).click()
+    await expect(page.locator('.name-box')).toHaveText('B2')
+    expect(await tableCells(page)).toEqual(['長い説明文', '', '続けて入力', '', '', ''])
+  } else {
+    expect(await tableCells(page)).toEqual(['長い説明文', '', '', '', '', ''])
+  }
+})
+
+test('右クリック（長押し）メニューと「表」タブで行・列を増やし、消せる', async ({ page }) => {
+  await insertTable(page, 2, 2)
+  const box = (await page.locator('.table-editor').boundingBox())!
+  await page.locator('.table-editor').click({ button: 'right', position: { x: 10, y: box.height * 0.75 } })
+  await expect(page.getByRole('menu', { name: 'セル A2' })).toBeVisible()
+  await page.getByRole('menuitem', { name: '下に行を挿入' }).click()
+  await expect(page.locator('.canvas-stage .slide-table tr')).toHaveCount(3)
+
+  await page.getByRole('button', { name: '右に列を挿入' }).click()
+  await expect(page.locator('.canvas-stage .slide-table tr').first().locator('td')).toHaveCount(3)
+  await page.getByRole('button', { name: '列を削除' }).click()
+  await expect(page.locator('.canvas-stage .slide-table tr').first().locator('td')).toHaveCount(2)
+})
+
+test('Excel でコピーした範囲を貼り付けると表になり、表の範囲は Excel に貼れる形でコピーされる', async ({ page }) => {
+  // Excel がクリップボードに入れるタブ区切り（セル内改行や桁区切りは "…" で囲まれる）
+  const tsv = '項目\t2025年度\r\n売上\t"1,200"\r\n"費用\n(販管費)"\t800\r\n'
+  await pasteText(page, 'body', tsv)
+  await expect(page.locator('.canvas-stage .slide-table')).toHaveCount(1)
+  expect(await tableCells(page)).toEqual(['項目', '2025年度', '売上', '1,200', '費用\n(販管費)', '800'])
+  // 数値は右揃え（Excel と同じ）
+  await expect(page.locator('.canvas-stage .slide-table td').nth(3)).toHaveCSS('text-align', 'right')
+  await expect(page.getByRole('tab', { name: '表', exact: true })).toBeVisible()
+
+  // 表に入って B2:B3 をコピー → タブ区切りで出る
+  await page.locator('.canvas-stage .slide-table').click()
+  await expect(page.locator('.table-editor')).toBeVisible()
+  await page.keyboard.press('Control+Home')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Shift+ArrowDown')
+  const copied = await page.evaluate(() => {
+    const data = new DataTransfer()
+    document
+      .querySelector('.table-cell-input')!
+      .dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }))
+    return data.getData('text/plain')
+  })
+  expect(copied).toBe('1,200\r\n800\r\n')
+
+  // 表の中で貼ると作業セルから広がる（足りない列は増える）
+  await pasteText(page, '.table-cell-input', 'x\ty\tz')
+  await expect(page.locator('.canvas-stage .slide-table tr').first().locator('td')).toHaveCount(4)
+})
+
+test('表は PowerPoint に本物の表として書き出される', async ({ page }) => {
+  await useAsciiTitle(page)
+  // 名前の欄から離れてスライドを選んでから貼る（入力欄にいるあいだの貼り付けは入力欄に入る）
+  await page.locator('.canvas-area').click({ position: { x: 5, y: 5 } })
+  await pasteText(page, 'body', 'name\tvalue\r\nalpha\t1\r\n')
+  await page.getByRole('tab', { name: 'ファイル' }).click()
+  const { buffer } = await readDownload(page, () =>
+    page.getByRole('button', { name: 'PowerPoint (.pptx)' }).click(),
+  )
+  const slide = readZipEntry(buffer, 'ppt/slides/slide1.xml')
+  expect(slide).toContain('<a:tbl>')
+  expect(slide).toContain('alpha')
+})
+
 test('PDF はブラウザの印刷に渡す', async ({ page }) => {
   await page.getByRole('tab', { name: 'ファイル' }).click()
   await page.getByRole('button', { name: 'PDF' }).click()

@@ -444,6 +444,15 @@ input[type="color"] {
   font-weight: 600;
 }
 
+/* 表を選んでいるときだけ出るタブ（Office のコンテキスト タブ）。目立つよう上に帯を付ける */
+.ribbon-tab.is-contextual {
+  box-shadow: inset 0 3px 0 #ffd166;
+}
+
+.ribbon-tab.is-contextual.is-active {
+  box-shadow: inset 0 3px 0 #ffd166;
+}
+
 .ribbon-tab.is-file {
   margin-right: 4px;
   font-weight: 600;
@@ -799,6 +808,37 @@ input[type="color"] {
   color: var(--text-dim);
 }
 
+/* 表の大きさを選ぶマス目（Office と同じ） */
+.table-picker {
+  padding: 2px 4px 6px;
+}
+
+.table-picker-grid {
+  display: grid;
+  gap: 3px;
+}
+
+.table-picker .table-picker-cell {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background: #fff;
+}
+
+.table-picker .table-picker-cell.is-on,
+.table-picker .table-picker-cell.is-on:hover {
+  border-color: var(--pp);
+  background: var(--pp-tint);
+}
+
+.ribbon-field {
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* 図形一覧 */
 
 .shape-gallery {
@@ -1124,6 +1164,26 @@ input[type="color"] {
   height: 100%;
 }
 
+/* 表（行の高さは固定。収まらない文字は切る） */
+.slide-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  line-height: 1.3;
+}
+
+.slide-table td {
+  overflow: hidden;
+  border-width: 1px;
+  border-style: solid;
+  vertical-align: middle;
+}
+
+.slide-table-cell {
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .slide-element.is-selected::after {
   content: "";
   position: absolute;
@@ -1158,6 +1218,162 @@ input[type="color"] {
   background: #fff;
   box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
   pointer-events: auto;
+}
+
+/* ------------------------------------------------------------ 数式バー（表の中にいるあいだ出る） */
+
+.formula-bar {
+  display: flex;
+  min-height: 32px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+.name-box {
+  display: flex;
+  min-width: 84px;
+  align-items: center;
+  padding: 0 10px;
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.formula-nav {
+  display: flex;
+  border-right: 1px solid var(--border);
+}
+
+.formula-nav button {
+  display: flex;
+  width: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  color: var(--text-dim);
+  background: transparent;
+}
+
+.formula-fx {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.formula-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  max-height: 96px;
+  margin: 0;
+  padding: 6px 8px;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  outline: none;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  field-sizing: content;
+}
+
+.formula-input:focus {
+  box-shadow: inset 0 -2px 0 var(--pp);
+}
+
+.is-compact .formula-bar {
+  min-height: 40px;
+}
+
+.is-compact .formula-input {
+  /* 16px 未満だと iPhone が入力時に画面を拡大してしまう */
+  font-size: 16px;
+}
+
+/* ------------------------------------------------------------ 表の中の操作（Excel と同じセル選択） */
+
+.table-editor {
+  position: absolute;
+  z-index: 1;
+  cursor: cell;
+  /* ドラッグで範囲を選ぶので、指でなぞってもページをスクロールさせない */
+  touch-action: none;
+}
+
+.table-range {
+  position: absolute;
+  border: 1px solid var(--pp);
+  background: rgb(196 62 28 / 12%);
+  pointer-events: none;
+}
+
+/* 作業セル（Excel の太枠） */
+.table-active-cell {
+  position: absolute;
+  border: 2px solid var(--pp);
+  pointer-events: none;
+}
+
+.table-col-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+}
+
+.table-col-resizer:hover {
+  background: rgb(196 62 28 / 25%);
+}
+
+/* セルの入力欄。準備完了のあいだは透明で、打ち始めるか F2 で見えるようになる */
+.table-cell-input {
+  position: absolute;
+  z-index: 3;
+  margin: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  opacity: 0;
+  caret-color: transparent;
+  pointer-events: none;
+  resize: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.table-cell-input.is-editing {
+  overflow: auto;
+  opacity: 1;
+  box-shadow:
+    0 0 0 2px var(--pp),
+    0 4px 12px rgb(0 0 0 / 18%);
+  caret-color: auto;
+  pointer-events: auto;
+}
+
+/* 選択枠のハンドルは表の操作より手前に出す（表の大きさも変えられるように） */
+.canvas-stage .selection-box {
+  z-index: 4;
+}
+
+.table-menu-row {
+  display: flex;
+}
+
+.table-menu-row button {
+  flex: 1;
+  text-align: center !important;
 }
 
 /* スマートガイド（PowerPoint と同じく赤系の破線） */
@@ -1313,6 +1529,27 @@ input[type="color"] {
   line-height: 1;
 }
 
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+
+.check-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.check-field input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--pp);
+}
+
 .hint {
   margin: 0;
   color: var(--text-dim);
@@ -1443,21 +1680,29 @@ input[type="color"] {
   background: #e8e8e8;
 }
 
-/* 見出しの右クリックメニュー（PC では押した位置の上に出す） */
-.sheet-menu {
+/* 右クリック（長押し）メニュー。PC では押した位置に出す（位置は style で渡す） */
+.context-menu {
   position: fixed;
   top: auto;
   right: auto;
   z-index: 90;
   min-width: 220px;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
 }
 
-.sheet-menu button[role="menuitem"] {
+.context-menu button[role="menuitem"] {
   padding: 6px 10px;
 }
 
-.sheet-menu .is-danger {
+.context-menu .is-danger {
   color: var(--danger);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
 }
 
 .sheet-colors {
@@ -1566,6 +1811,23 @@ input[type="color"] {
 
 .status-spacer {
   flex: 1;
+}
+
+.status-cell-mode {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.status-address {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Excel と同じく、範囲を選ぶと右側に集計を出す */
+.status-summary {
+  display: inline-flex;
+  gap: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .zoom-control {
@@ -2016,6 +2278,12 @@ input[type="color"] {
   width: auto;
 }
 
+/* 指で押しやすいようにマス目を大きくする */
+.is-compact .table-picker .table-picker-cell {
+  width: auto;
+  height: 28px;
+}
+
 /* シートの項目はタッチで押せる高さにする */
 .is-compact .dropdown button,
 .is-compact .file-menu-item,
@@ -2196,7 +2464,7 @@ input[type="color"] {
   width: 40px;
 }
 
-.is-compact .sheet-menu button[role="menuitem"] {
+.is-compact .context-menu button[role="menuitem"] {
   padding: 10px 14px;
 }
 

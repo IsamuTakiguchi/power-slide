@@ -10,6 +10,7 @@ import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
 import { Icon } from './Icon'
 import { activeSlides } from '@shared/deck'
+import { setTableOption, setTableStyle } from '../lib/tableCommands'
 
 const FONT_OPTIONS: { label: string; value: string }[] = [
   { label: 'テーマの既定', value: '' },
@@ -108,8 +109,16 @@ function ColorField({
   )
 }
 
-/** 単一選択の要素の書式パネル。 */
-function ElementPanel({ element, palette }: { element: SlideElement; palette: string[] }) {
+/** 単一選択の要素の書式パネル。accent は表の見出しの既定色（テーマの差し色）。 */
+function ElementPanel({
+  element,
+  palette,
+  accent,
+}: {
+  element: SlideElement
+  palette: string[]
+  accent: string
+}) {
   const updateElement = useDeckStore((state) => state.updateElement)
   const reorderSelected = useDeckStore((state) => state.reorderSelected)
   const deleteSelected = useDeckStore((state) => state.deleteSelected)
@@ -125,13 +134,16 @@ function ElementPanel({ element, palette }: { element: SlideElement; palette: st
           <NumberField label="Y" value={element.y} onChange={(y) => patch({ y })} />
           <NumberField label="幅" value={element.w} min={8} onChange={(w) => patch({ w })} />
           <NumberField label="高さ" value={element.h} min={8} onChange={(h) => patch({ h })} />
-          <NumberField
-            label="回転(度)"
-            value={element.rotation}
-            min={-180}
-            max={180}
-            onChange={(rotation) => patch({ rotation })}
-          />
+          {/* 表は回転しない（PowerPoint の表と同じ） */}
+          {element.type !== 'table' && (
+            <NumberField
+              label="回転(度)"
+              value={element.rotation}
+              min={-180}
+              max={180}
+              onChange={(rotation) => patch({ rotation })}
+            />
+          )}
         </div>
         <div className="button-row">
           <button type="button" onClick={() => reorderSelected('front')}>
@@ -314,6 +326,57 @@ function ElementPanel({ element, palette }: { element: SlideElement; palette: st
         </section>
       )}
 
+      {element.type === 'table' && (
+        <section className="inspector-section">
+          <h3>表</h3>
+          <p className="hint">
+            {element.rows.length} 行 × {element.rows[0]?.length ?? 0} 列。セルを選ぶにはもう一度クリック、
+            入力はダブルクリックか、選んでからそのまま打ちます（Excel と同じ）。
+          </p>
+          <div className="check-list">
+            {(
+              [
+                ['headerRow', '見出し行'],
+                ['bandedRows', '縞模様（行）'],
+                ['firstColumn', '最初の列を太字'],
+              ] as const
+            ).map(([option, label]) => (
+              <label key={option} className="check-field">
+                <input
+                  type="checkbox"
+                  checked={element[option]}
+                  onChange={(event) => setTableOption(option, event.target.checked)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="field-grid">
+            <NumberField
+              label="文字サイズ"
+              value={element.fontSize}
+              min={8}
+              max={96}
+              onChange={(fontSize) => setTableStyle({ fontSize })}
+            />
+          </div>
+          <ColorField
+            label="見出しの色"
+            value={element.headerFill || accent}
+            palette={palette}
+            allowNone
+            onChange={(headerFill) => setTableStyle({ headerFill })}
+          />
+          <ColorField
+            label="罫線の色"
+            value={element.borderColor}
+            palette={['#bfbfbf', '#7f7f7f', '#262626', ...palette]}
+            allowNone
+            onChange={(borderColor) => setTableStyle({ borderColor })}
+          />
+        </section>
+      )}
+
       {element.type === 'image' && (
         <section className="inspector-section">
           <h3>画像</h3>
@@ -358,7 +421,12 @@ export function Inspector() {
 
   const paneTitle =
     selection.length === 1
-      ? { text: '文字の書式設定', shape: '図形の書式設定', image: '図の書式設定' }[selection[0].type]
+      ? {
+          text: '文字の書式設定',
+          shape: '図形の書式設定',
+          image: '図の書式設定',
+          table: '表の書式設定',
+        }[selection[0].type]
       : selection.length > 1
         ? '書式設定'
         : '背景の書式設定'
@@ -388,7 +456,7 @@ export function Inspector() {
         </section>
       )}
 
-      {selection.length === 1 && <ElementPanel element={selection[0]} palette={theme.palette} />}
+      {selection.length === 1 && <ElementPanel element={selection[0]} palette={theme.palette} accent={theme.accent} />}
 
       {selection.length > 1 && (
         <section className="inspector-section">

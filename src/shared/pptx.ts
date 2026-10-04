@@ -15,6 +15,7 @@ import {
   type ShapeElement,
   type Slide,
   type SlideElement,
+  type TableElement,
   type TextElement,
   type TextRun,
   type Theme,
@@ -22,6 +23,10 @@ import {
 import { pxToInch, pxToPt, SLIDE_HEIGHT_IN, SLIDE_WIDTH_IN } from './geometry'
 import { resolveTheme } from './themes'
 import { pptxFontFor } from './fonts'
+import { cellStyle, columnWidthsPx, tableColors } from './table'
+
+/** 表のセルの余白（inch）。画面のセルの左右 10px・上下わずかに合わせる。 */
+const TABLE_CELL_MARGIN_IN: [number, number, number, number] = [0.02, 10 / 96, 0.02, 10 / 96]
 
 const LAYOUT_NAME = 'POWER_SLIDE_16x9'
 
@@ -173,6 +178,46 @@ function addImageElement(slide: PptxGenJS.Slide, element: ImageElement): void {
   })
 }
 
+/**
+ * 表は PowerPoint の本物の表として書き出す（受け取った側でもセルを編集できるように）。
+ * セルの色・太字・揃えは画面と同じ cellStyle で決める。
+ */
+function addTableElement(slide: PptxGenJS.Slide, element: TableElement, theme: Theme): void {
+  const colors = tableColors(element, theme)
+  const fontFace = primaryFont(element.fontFamily, theme.bodyFont)
+  const fontSize = pxToPt(element.fontSize)
+  const rows: PptxGenJS.TableRow[] = element.rows.map((row, rowIndex) =>
+    row.map((cell, colIndex) => {
+      const style = cellStyle(element, rowIndex, colIndex, colors)
+      return {
+        text: cell.text,
+        options: {
+          bold: style.bold,
+          color: hex(style.color, theme.bodyColor),
+          fill: { color: hex(style.fill, theme.background) },
+          align: style.align,
+          valign: 'middle' as const,
+          lang: TEXT_LANG,
+        },
+      }
+    }),
+  )
+  slide.addTable(rows, {
+    x: pxToInch(element.x),
+    y: pxToInch(element.y),
+    w: pxToInch(element.w),
+    h: pxToInch(element.h),
+    colW: columnWidthsPx(element).map((width) => pxToInch(width)),
+    rowH: pxToInch(element.h / element.rows.length),
+    fontFace,
+    fontSize,
+    color: hex(colors.text, theme.bodyColor),
+    border: { type: 'solid', pt: 0.75, color: hex(colors.border, '#BFBFBF') },
+    margin: TABLE_CELL_MARGIN_IN,
+    valign: 'middle',
+  })
+}
+
 function addElement(slide: PptxGenJS.Slide, element: SlideElement, theme: Theme): void {
   switch (element.type) {
     case 'text':
@@ -183,6 +228,9 @@ function addElement(slide: PptxGenJS.Slide, element: SlideElement, theme: Theme)
       break
     case 'image':
       addImageElement(slide, element)
+      break
+    case 'table':
+      addTableElement(slide, element, theme)
       break
   }
 }

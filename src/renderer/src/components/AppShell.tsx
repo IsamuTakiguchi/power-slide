@@ -15,11 +15,13 @@ import { useAutoSave } from '../hooks/useAutoSave'
 import { useMenuCommands } from '../hooks/useMenuCommands'
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts'
 import { useFileLaunch } from '../hooks/useFileLaunch'
+import { useClipboard } from '../hooks/useClipboard'
 import { platform } from '../platform'
 import { TitleBar } from './TitleBar'
 import { Ribbon } from './Ribbon'
 import { SlideList } from './SlideList'
 import { SlideCanvas } from './SlideCanvas'
+import { FormulaBar } from './FormulaBar'
 import { Inspector } from './Inspector'
 import { NotesPane } from './NotesPane'
 import { SheetTabs } from './SheetTabs'
@@ -91,6 +93,7 @@ export function AppShell() {
   useAutoSave()
   useMenuCommands()
   useEditorShortcuts()
+  useClipboard()
   useFileLaunch()
 
   // ウィンドウタイトルにファイル名と未保存マークを出す
@@ -115,6 +118,7 @@ export function AppShell() {
       <div className="app-body">
         <SlideList />
         <main className="app-main">
+          <FormulaBar />
           <SlideCanvas />
           <NotesPane />
         </main>

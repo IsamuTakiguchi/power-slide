@@ -2,7 +2,7 @@
 import { create } from 'zustand'
 
 /** リボンのタブ。PowerPoint と同じ並びにしている。 */
-export type RibbonTab = 'home' | 'insert' | 'design' | 'slideshow'
+export type RibbonTab = 'home' | 'insert' | 'design' | 'slideshow' | 'table'
 
 /**
  * 画面の広さの段階。幅で自動的に決まる（AppShell が matchMedia で見ている）。
@@ -35,6 +35,12 @@ function storeAutoSavePref(enabled: boolean): void {
 /** 書き出す範囲。Excel の PDF 出力と同じく、既定は開いているシートだけ。 */
 export type ExportScope = 'sheet' | 'all'
 
+/**
+ * 表のセルの状態（Excel のステータスバー左端の表示と同じ）。
+ * ready=準備完了（セルを選んでいるだけ）、enter=入力（打ち始めて上書き中）、edit=編集（F2 など）。
+ */
+export type CellMode = 'ready' | 'enter' | 'edit'
+
 export interface UiStore {
   presenting: boolean
   /** 画面右下に短時間出す通知。 */
@@ -62,6 +68,8 @@ export interface UiStore {
   effectiveZoom: number
   /** 書き出す範囲（シートが 2 枚以上あるときだけ「ファイル」メニューで選べる）。 */
   exportScope: ExportScope
+  /** 表の中にいるときのセルの状態。表の外では null。 */
+  cellMode: CellMode | null
   /**
    * 自動保存のスイッチ（Office の「自動保存」と同じ）。オフのときは自動では何も書かない。
    * 端末ごとの設定として覚えておく。
@@ -78,6 +86,7 @@ export interface UiStore {
   setEffectiveZoom: (zoom: number) => void
   setExportScope: (scope: ExportScope) => void
   setAutoSaveEnabled: (enabled: boolean) => void
+  setCellMode: (mode: CellMode | null) => void
 }
 
 export const ZOOM_MIN = 25
@@ -96,6 +105,7 @@ export const useUiStore = create<UiStore>((set) => ({
   effectiveZoom: 100,
   exportScope: 'sheet',
   autoSaveEnabled: loadAutoSavePref(),
+  cellMode: null,
   setPresenting: (presenting) => set({ presenting }),
   setStatus: (status) => set({ status }),
   // 別のタブを選んだときは、たたんでいたリボンを開く
@@ -115,6 +125,7 @@ export const useUiStore = create<UiStore>((set) => ({
     set({ zoom: zoom === null ? null : Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom))) }),
   setEffectiveZoom: (effectiveZoom) => set({ effectiveZoom }),
   setExportScope: (exportScope) => set({ exportScope }),
+  setCellMode: (cellMode) => set({ cellMode }),
   setAutoSaveEnabled: (autoSaveEnabled) => {
     storeAutoSavePref(autoSaveEnabled)
     set({ autoSaveEnabled })

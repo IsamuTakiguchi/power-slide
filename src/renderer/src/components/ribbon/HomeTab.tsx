@@ -3,6 +3,7 @@ import { useDeckStore } from '../../store/deckStore'
 import { insertImage, insertTextBox } from '../../lib/commands'
 import { FontGroup, ParagraphGroup } from './FontGroup'
 import { BigButton, RibbonGroup, SmallButton, SmallStack } from './RibbonParts'
+import { copyToSystemClipboard, pasteFromSystemClipboard } from '../../lib/paste'
 import { NewSlideButton, ShapesButton } from './SharedButtons'
 import { activeSlides } from '@shared/deck'
 
@@ -16,6 +17,19 @@ export function HomeTab() {
 
   return (
     <>
+      <RibbonGroup label="クリップボード">
+        <BigButton
+          icon="paste"
+          label="貼り付け"
+          title="貼り付け（Ctrl+V）。Excel でコピーした範囲は表になります"
+          onClick={() => void pasteFromSystemClipboard()}
+        />
+        <SmallStack>
+          <SmallButton icon="cut" label="切り取り" title="切り取り（Ctrl+X）" onClick={() => void copyToSystemClipboard(true)} />
+          <SmallButton icon="duplicate" label="コピー" title="コピー（Ctrl+C）" onClick={() => void copyToSystemClipboard(false)} />
+        </SmallStack>
+      </RibbonGroup>
+
       <RibbonGroup label="スライド">
         <NewSlideButton />
         <SmallStack>

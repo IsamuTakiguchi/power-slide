@@ -10,9 +10,11 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore } from '../store/uiStore'
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
-import type { SlideElement } from '@shared/deck'
+import type { SlideElement, TableElement } from '@shared/deck'
+import { cellAt, type CellPos } from '@shared/table'
 import { resolveTheme } from '@shared/themes'
 import { SlideView } from './SlideView'
+import { TableEditor } from './TableEditor'
 import { snapMove, type Guide, type Rect } from '../lib/snapping'
 import { activeSlides } from '@shared/deck'
 
@@ -79,6 +81,7 @@ export function SlideCanvas() {
   const customTheme = useDeckStore((state) => state.deck.theme)
   const selectedIds = useDeckStore((state) => state.selectedIds)
   const editingId = useDeckStore((state) => state.editingId)
+  const tableCursor = useDeckStore((state) => state.tableCursor)
   const theme = resolveTheme(themeId, customTheme)
 
   const select = useDeckStore((state) => state.select)
@@ -92,6 +95,9 @@ export function SlideCanvas() {
   const setEffectiveZoom = useUiStore((state) => state.setEffectiveZoom)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  /** 最後に要素を押した画面上の位置（ダブルクリックで表のどのセルかを知るため）。 */
+  const lastPointerRef = useRef({ x: 0, y: 0 })
   const [scale, setScale] = useState(0.6)
   const [guides, setGuides] = useState<Guide[]>([])
   const dragRef = useRef<DragState | null>(null)
@@ -125,6 +131,16 @@ export function SlideCanvas() {
     return () => observer.disconnect()
   }, [zoom, setEffectiveZoom])
 
+  /** 画面上の位置にある、表のセル。 */
+  const cellFromClient = useCallback(
+    (table: TableElement, clientX: number, clientY: number): CellPos => {
+      const stage = stageRef.current?.getBoundingClientRect()
+      if (!stage) return { row: 0, col: 0 }
+      return cellAt(table, (clientX - stage.left) / scale - table.x, (clientY - stage.top) / scale - table.y)
+    },
+    [scale],
+  )
+
   /** ドラッグ対象（選択中の要素）の開始矩形を集める。 */
   const collectOrigin = useCallback(
     (ids: string[]): Map<string, Rect> => {
@@ -140,6 +156,7 @@ export function SlideCanvas() {
   )
 
   const beginMove = (id: string, event: ReactPointerEvent<HTMLDivElement>) => {
+    lastPointerRef.current = { x: event.clientX, y: event.clientY }
     if (editingId) return
     const additive = event.shiftKey
     let ids: string[]
@@ -251,14 +268,19 @@ export function SlideCanvas() {
       setGuides([])
       endTransaction()
 
-      // 指で、選択済みのテキストを動かさずにタップしたら文字編集に入る
-      // （マウスはダブルクリックのまま）
-      if (drag.kind !== 'move' || drag.moved || !drag.id) return
-      if (drag.pointerType === 'mouse' || !drag.wasSelected) return
+      // 選択済みの要素を動かさずにもう一度押したとき:
+      // ・表なら、押したセルを選んで表の中の操作に入る（マウスでも指でも）
+      // ・テキストなら、指のときだけ文字編集に入る（マウスはダブルクリックのまま）
+      if (drag.kind !== 'move' || drag.moved || !drag.id || !drag.wasSelected) return
       const store = useDeckStore.getState()
       const target = activeSlides(store.deck)[store.slideIndex]?.elements.find(
         (element) => element.id === drag.id,
       )
+      if (target?.type === 'table') {
+        store.enterTable(target.id, cellFromClient(target, drag.startX, drag.startY))
+        return
+      }
+      if (drag.pointerType === 'mouse') return
       if (target?.type === 'text') store.setEditing(drag.id)
     }
 
@@ -270,11 +292,17 @@ export function SlideCanvas() {
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [scale, endTransaction])
+  }, [scale, endTransaction, cellFromClient])
 
   if (!slide) return null
 
   const selection = slide.elements.filter((element) => selectedIds.includes(element.id))
+  const cursorTable = tableCursor
+    ? slide.elements.find(
+        (element): element is TableElement =>
+          element.id === tableCursor.elementId && element.type === 'table',
+      )
+    : undefined
   const bounds =
     selection.length > 0
       ? {
@@ -287,7 +315,11 @@ export function SlideCanvas() {
 
   return (
     <div className="canvas-area" ref={containerRef}>
-      <div className="canvas-stage" style={{ width: SLIDE_WIDTH * scale, height: SLIDE_HEIGHT * scale }}>
+      <div
+        className="canvas-stage"
+        ref={stageRef}
+        style={{ width: SLIDE_WIDTH * scale, height: SLIDE_HEIGHT * scale }}
+      >
         <SlideView
           slide={slide}
           theme={theme}
@@ -299,7 +331,11 @@ export function SlideCanvas() {
           onElementDoubleClick={(id) => {
             const element = slide.elements.find((item) => item.id === id)
             if (element?.type === 'text') setEditing(id)
-            else select([id])
+            else if (element?.type === 'table') {
+              // Excel と同じく、ダブルクリックしたセルをそのまま編集する
+              const { x, y } = lastPointerRef.current
+              useDeckStore.getState().enterTable(id, cellFromClient(element, x, y), true)
+            } else select([id])
           }}
           onBackgroundPointerDown={() => {
             clearSelection()
@@ -320,6 +356,11 @@ export function SlideCanvas() {
           ) : (
             <div key={index} className="snap-guide is-horizontal" style={{ top: guide.position * scale }} />
           ),
+        )}
+
+        {/* 表の中の操作（Excel と同じセル選択と入力） */}
+        {cursorTable && tableCursor && (
+          <TableEditor table={cursorTable} cursor={tableCursor} scale={scale} theme={theme} />
         )}
 
         {/* 選択枠とハンドル（画面座標） */}

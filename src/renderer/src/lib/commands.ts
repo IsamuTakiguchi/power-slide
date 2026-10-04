@@ -265,28 +265,28 @@ export async function insertImage(): Promise<void> {
     if (picked.error) await showError(picked.error)
     return
   }
-  // 元画像の縦横比を保ったまま、スライドに収まる大きさで置く
+  placeImage(picked.dataUrl, picked.mime, picked.width, picked.height)
+  flashStatus('画像を追加しました')
+}
+
+/** 画像を、元の縦横比のままスライドに収まる大きさで中央に置く（挿入・貼り付けで共用）。 */
+export function placeImage(dataUrl: string, mime: string, width?: number, height?: number): void {
   const maxW = 760
   const maxH = 480
-  const ratio = picked.width && picked.height ? picked.width / picked.height : 4 / 3
+  const ratio = width && height ? width / height : 4 / 3
   let w = maxW
   let h = Math.round(maxW / ratio)
   if (h > maxH) {
     h = maxH
     w = Math.round(maxH * ratio)
   }
+  // 元の画像が小さいときは引き伸ばさない
+  if (width && height && width < w) {
+    w = Math.round(width)
+    h = Math.round(width / ratio)
+  }
   const position = centerPosition(w, h)
-  store().addElement(
-    createImageElement({
-      dataUrl: picked.dataUrl,
-      mime: picked.mime,
-      ...position,
-      w,
-      h,
-      naturalRatio: ratio,
-    }),
-  )
-  flashStatus('画像を追加しました')
+  store().addElement(createImageElement({ dataUrl, mime, ...position, w, h, naturalRatio: ratio }))
 }
 
 // ---------------------------------------------------------------- 発表

@@ -1,11 +1,12 @@
-/** 複数のタブに同じ形で出てくるボタン（新しいスライド・図形）。 */
-import { useMemo } from 'react'
+/** 複数のタブに同じ形で出てくるボタン（新しいスライド・図形・表）。 */
+import { useMemo, useState } from 'react'
 import type { ShapeKind } from '@shared/deck'
 import { SLIDE_WIDTH } from '@shared/geometry'
 import { buildSlideFromLayout, DEFAULT_LAYOUT_ID, LAYOUTS } from '@shared/layouts'
 import { resolveTheme } from '@shared/themes'
 import { useDeckStore } from '../../store/deckStore'
 import { insertShape } from '../../lib/commands'
+import { insertTable } from '../../lib/tableCommands'
 import { Icon, type IconName } from '../Icon'
 import { SlideView } from '../SlideView'
 import { BigMenuButton, BigSplitButton } from './RibbonParts'
@@ -106,4 +107,51 @@ export function ShapesButton() {
       )}
     />
   )
+}
+
+/** 表の大きさを選ぶマス目の数（Office と同じ 10 列 × 8 行）。 */
+const PICKER_ROWS = 8
+const PICKER_COLS = 10
+
+/** マス目をなぞって大きさを選び、押すとその大きさの表を入れる（指ではマス目を押すだけ）。 */
+function TablePicker({ close }: { close: () => void }) {
+  const [hover, setHover] = useState({ rows: 0, cols: 0 })
+  return (
+    <div className="table-picker" role="menu" aria-label="表の大きさ">
+      <div className="gallery-title">
+        {hover.rows > 0 ? `${hover.rows} 行 × ${hover.cols} 列の表` : '表の大きさを選ぶ'}
+      </div>
+      <div
+        className="table-picker-grid"
+        style={{ gridTemplateColumns: `repeat(${PICKER_COLS}, 1fr)` }}
+        onPointerLeave={() => setHover({ rows: 0, cols: 0 })}
+      >
+        {Array.from({ length: PICKER_ROWS * PICKER_COLS }, (_, index) => {
+          const rows = Math.floor(index / PICKER_COLS) + 1
+          const cols = (index % PICKER_COLS) + 1
+          const lit = rows <= hover.rows && cols <= hover.cols
+          return (
+            <button
+              key={index}
+              type="button"
+              role="menuitem"
+              aria-label={`${rows} 行 × ${cols} 列`}
+              className={['table-picker-cell', lit ? 'is-on' : ''].filter(Boolean).join(' ')}
+              onPointerEnter={() => setHover({ rows, cols })}
+              onFocus={() => setHover({ rows, cols })}
+              onClick={() => {
+                close()
+                insertTable(rows, cols)
+              }}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** 「表」。押すとマス目が開き、大きさを選んで挿入する。 */
+export function TableButton() {
+  return <BigMenuButton icon="table" label="表" menu={(close) => <TablePicker close={close} />} />
 }

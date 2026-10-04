@@ -8,6 +8,7 @@ import { SLIDE_HEIGHT, SLIDE_WIDTH } from '@shared/geometry'
 import { TextElementView } from './elements/TextElementView'
 import { ShapeElementView } from './elements/ShapeElementView'
 import { ImageElementView } from './elements/ImageElementView'
+import { TableElementView } from './elements/TableElementView'
 
 export interface SlideViewProps {
   slide: Slide
@@ -52,6 +53,8 @@ function ElementBody({
       return <ShapeElementView element={element} theme={theme} />
     case 'image':
       return <ImageElementView element={element} />
+    case 'table':
+      return <TableElementView element={element} theme={theme} />
   }
 }
 

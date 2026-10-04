@@ -1,12 +1,24 @@
-/** 最下段のステータスバー。スライド番号・テーマ・ノートの切り替え・スライドショー・ズーム。 */
+/**
+ * 最下段のステータスバー。スライド番号・テーマ・ノートの切り替え・スライドショー・ズーム。
+ * 表の中にいるときは Excel と同じく、左端にセルの状態（準備完了／入力／編集）と番地、
+ * 範囲を選んでいれば右側に平均・データの個数・合計を出す。
+ */
 import { resolveTheme } from '@shared/themes'
 import { useDeckStore } from '../store/deckStore'
 import { useUiStore, ZOOM_MAX, ZOOM_MIN } from '../store/uiStore'
 import { startPresenting } from '../lib/commands'
+import { selectTargetTable } from '../lib/tableCommands'
+import { rangeAddress, rangeOf, summarizeRange } from '@shared/table'
 import { Icon } from './Icon'
 import { activeSlides } from '@shared/deck'
 
 const ZOOM_STEP = 10
+
+const CELL_MODE_LABEL = { ready: '準備完了', enter: '入力', edit: '編集' } as const
+
+function formatNumber(value: number): string {
+  return value.toLocaleString('ja-JP', { maximumFractionDigits: 2 })
+}
 
 export function StatusBar() {
   const slideIndex = useDeckStore((state) => state.slideIndex)
@@ -20,14 +32,30 @@ export function StatusBar() {
   const zoom = useUiStore((state) => state.zoom)
   const effectiveZoom = useUiStore((state) => state.effectiveZoom)
   const setZoom = useUiStore((state) => state.setZoom)
+  const cellMode = useUiStore((state) => state.cellMode)
+  const tableCursor = useDeckStore((state) => state.tableCursor)
+  const cursorTable = useDeckStore((state) => (state.tableCursor ? selectTargetTable(state) : null))
 
   const theme = resolveTheme(themeId, customTheme)
 
+  const range = tableCursor && cursorTable ? rangeOf(tableCursor.active, tableCursor.anchor) : null
+  const multiCell = range !== null && (range.top !== range.bottom || range.left !== range.right)
+  const summary = range && cursorTable && multiCell ? summarizeRange(cursorTable, range) : null
+
   return (
     <footer className="status-bar">
-      <span className="status-item">
-        スライド {slideIndex + 1}/{slideCount}
-      </span>
+      {cellMode && range ? (
+        <>
+          <span className="status-item status-cell-mode">{CELL_MODE_LABEL[cellMode]}</span>
+          <span className="status-item status-address" aria-label="選択中のセル">
+            {rangeAddress(range)}
+          </span>
+        </>
+      ) : (
+        <span className="status-item">
+          スライド {slideIndex + 1}/{slideCount}
+        </span>
+      )}
       <span className="status-item is-optional">日本語</span>
       <span className="status-item is-optional" title="テーマ">
         {theme.name}
@@ -52,6 +80,14 @@ export function StatusBar() {
       </button>
 
       <span className="status-spacer" />
+
+      {summary && summary.count > 0 && (
+        <span className="status-item status-summary" aria-label="選択範囲の集計">
+          {summary.average !== null && <span>平均: {formatNumber(summary.average)}</span>}
+          <span>データの個数: {summary.count}</span>
+          {summary.numericCount > 0 && <span>合計: {formatNumber(summary.sum)}</span>}
+        </span>
+      )}
 
       <button
         type="button"

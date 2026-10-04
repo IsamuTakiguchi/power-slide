@@ -105,7 +105,44 @@ export interface ImageElement extends ElementBase {
   naturalRatio?: number
 }
 
-export type SlideElement = TextElement | ShapeElement | ImageElement
+/** 表の 1 セル。書式は省略時に表全体の既定（見出し行・縞模様など）に従う。 */
+export interface TableCell {
+  text: string
+  bold?: boolean
+  /** 文字色。 */
+  color?: string
+  /** 塗りつぶし。 */
+  fill?: string
+  align?: TextAlign
+}
+
+/**
+ * 表。Excel と同じくセル単位で入力・書式設定し、PowerPoint へは本物の表として書き出す。
+ * 行の高さは全行同じ（要素の高さを行数で割る）、列幅は colWidths の比率で按分する。
+ */
+export interface TableElement extends ElementBase {
+  type: 'table'
+  /** rows[行][列]。どの行も列の数は同じ。 */
+  rows: TableCell[][]
+  /** 列幅の比率（合計は任意）。 */
+  colWidths: number[]
+  /** 空ならテーマの本文フォント。 */
+  fontFamily: string
+  /** 論理 px。 */
+  fontSize: number
+  /** 1 行目を見出しとして差し色で塗る。 */
+  headerRow: boolean
+  /** 1 行おきに薄く塗る（縞模様）。 */
+  bandedRows: boolean
+  /** 最初の列を太字にする。 */
+  firstColumn: boolean
+  /** 罫線の色。空ならテーマに合わせた灰色。 */
+  borderColor: string
+  /** 見出し行の塗り。空ならテーマの差し色。 */
+  headerFill: string
+}
+
+export type SlideElement = TextElement | ShapeElement | ImageElement | TableElement
 
 export type ElementType = SlideElement['type']
 
@@ -202,6 +239,35 @@ export function createImageElement(partial: Partial<ImageElement> & Pick<ImageEl
     h: 400,
     rotation: 0,
     fit: 'contain',
+    ...partial,
+  }
+}
+
+/** 空の表をつくる。行・列の数は 1 以上。 */
+export function createTableElement(
+  rowCount: number,
+  colCount: number,
+  partial: Partial<TableElement> = {},
+): TableElement {
+  const rows = Math.max(1, rowCount)
+  const cols = Math.max(1, colCount)
+  return {
+    id: newId('el'),
+    type: 'table',
+    x: 140,
+    y: 160,
+    w: 1000,
+    h: Math.min(440, rows * 48),
+    rotation: 0,
+    rows: Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ text: '' }))),
+    colWidths: Array.from({ length: cols }, () => 1),
+    fontFamily: '',
+    fontSize: 22,
+    headerRow: true,
+    bandedRows: true,
+    firstColumn: false,
+    borderColor: '',
+    headerFill: '',
     ...partial,
   }
 }
